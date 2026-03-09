@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .content {
+            padding: 30px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .logs-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .logs-table th,
+        .logs-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .logs-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        .threat-high {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .threat-medium {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+        .threat-low {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .threat-critical {
+            background: #fce4ec;
+            color: #ad1457;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                MAYASEC Security Dashboard
+            </h1>
+            <div class="nav-buttons">
+                <a href="#" class="btn">Network Logs</a>
+                <a href="#" class="btn">Security Logs</a>
+                <a href="#" class="btn">JSON Report</a>
+                <a href="#" class="btn" onclick="runSystemTest()">System Test</a>
+                <a href="#" class="btn">Logout</a>
+            </div>
+        </div>
+
+        <div class="content">
+
+            <!-- Quick Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">142</div>
+                    <div>Login attempts (24h)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">87</div>
+                    <div>Blocked attempts (24h)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">34</div>
+                    <div>Currently blocked IPs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">29</div>
+                    <div>High threat events (24h)</div>
+                </div>
+            </div>
+
+            <!-- Recent Security Logs -->
+            <div class="logs-section">
+                <h2>Recent Security Events</h2>
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>IP Address</th>
+                            <th>Username</th>
+                            <th>Action</th>
+                            <th>Reason</th>
+                            <th>AI Threat Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="threat-critical">
+                            <td>2025-09-24 21:30:45</td>
+                            <td>192.168.1.101</td>
+                            <td>hacker123</td>
+                            <td>Login Failed</td>
+                            <td>Multiple failed attempts</td>
+                            <td>CRITICAL</td>
+                        </tr>
+                        <tr class="threat-high">
+                            <td>2025-09-24 21:28:12</td>
+                            <td>10.0.0.5</td>
+                            <td>Anonymous</td>
+                            <td>Port Scan</td>
+                            <td>Suspicious activity</td>
+                            <td>HIGH</td>
+                        </tr>
+                        <tr class="threat-medium">
+                            <td>2025-09-24 20:59:03</td>
+                            <td>172.16.0.33</td>
+                            <td>bot_user</td>
+                            <td>Login Attempt</td>
+                            <td>Brute force detected</td>
+                            <td>MEDIUM</td>
+                        </tr>
+                        <tr class="threat-low">
+                            <td>2025-09-24 20:45:22</td>
+                            <td>192.168.1.55</td>
+                            <td>guest</td>
+                            <td>Login Attempt</td>
+                            <td>Failed login</td>
+                            <td>LOW</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="margin-top: 15px;">
+                    <a href="#" class="btn" style="background: #667eea; color: white;">View All Security Logs</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function runSystemTest() {
+            alert('System test initiated. All security components are operational.');
+        }
+
+        // Auto-refresh logs every 30 seconds
+        setInterval(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

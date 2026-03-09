@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAYASEC Network Logs</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .content {
+            padding: 30px;
+        }
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .logs-table th,
+        .logs-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .logs-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        .logs-table tr:hover {
+            background: #f5f5f5;
+        }
+        .alert-high {
+            border-left: 4px solid #f44336;
+        }
+        .alert-medium {
+            border-left: 4px solid #ff9800;
+        }
+        .alert-low {
+            border-left: 4px solid #4caf50;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .pagination a {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .pagination a:hover {
+            background: #5a6fd8;
+        }
+        .pagination .current {
+            background: #764ba2;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background: #5a6fd8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 Network Logs</h1>
+            <div>
+                <a href="/dashboard" class="btn">← Back to Dashboard</a>
+            </div>
+        </div>
+
+        <div class="content">
+            <div style="overflow-x: auto;">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>Source IP</th>
+                            <th>Destination IP(s)</th>
+                            <th>Destination Port(s)</th>
+                            <th>Protocol</th>
+                            <th>Alert Signature</th>
+                            <th>Severity</th>
+                            <th>Count</th>
+                            <th>First Seen</th>
+                            <th>Last Seen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in network_logs %}
+                        <tr class="alert-{{ log.severity|lower }}">
+                            <td>{{ log.src_ip }}</td>
+                            <td>{{ log.dest_ips }}</td>
+                            <td>{{ log.dest_ports }}</td>
+                            <td>{{ log.proto }}</td>
+                            <td>{{ log.alert_signature }}</td>
+                            <td>{{ log.severity }}</td>
+                            <td>{{ log.count }}</td>
+                            <td>{{ log.first_seen }}</td>
+                            <td>{{ log.last_seen }}</td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% if has_prev %}
+                    <a href="?page={{ page - 1 }}">Previous</a>
+                {% endif %}
+
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                        <a href="#" class="current">{{ p }}</a>
+                    {% else %}
+                        <a href="?page={{ p }}">{{ p }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if has_next %}
+                    <a href="?page={{ page + 1 }}">Next</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+  async function fetchLogs() {
+      const response = await fetch("/network_logs_data");
+      const data = await response.text(); // returns rendered HTML rows
+      document.querySelector("#network-logs-body").innerHTML = data;
+  }
+
+  // Fetch logs every 5 seconds
+  setInterval(fetchLogs, 5000);
+
+  // Initial load
+  fetchLogs();
+    </script>
+
+</body>
+</html>

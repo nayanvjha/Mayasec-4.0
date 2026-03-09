@@ -1,0 +1,339 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MAYASEC Normalized Event Schema",
+  "description": "Canonical internal event format for all security events in MAYASEC",
+  "version": "1.0.0",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "timestamp",
+    "source",
+    "sensor_id",
+    "sensor_type",
+    "source_ip",
+    "destination",
+    "raw_log",
+    "severity",
+    "correlation_id"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "Unique event identifier (UUID v4)",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Type of security event",
+      "enum": [
+        "login_attempt",
+        "ssh_failed_login",
+        "web_auth_failed",
+        "honeypot_interaction",
+        "ssh_honeypot_connection",
+        "network_alert",
+        "network_flow",
+        "security_action",
+        "authentication_success",
+        "authentication_failure",
+        "access_denied",
+        "suspicious_behavior",
+        "port_scan"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event occurred"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source system that generated the event",
+      "enum": [
+        "http_api",
+        "log_file",
+        "syslog",
+        "ids",
+        "firewall",
+        "honeypot",
+        "web_application",
+        "custom"
+      ]
+    },
+    "sensor_id": {
+      "type": "string",
+      "description": "Identifier of the sensor/host that collected this event",
+      "minLength": 1
+    },
+    "sensor_type": {
+      "type": "string",
+      "description": "Sensor type that produced the event",
+      "enum": [
+        "suricata",
+        "auth",
+        "system",
+        "honeypot"
+      ]
+    },
+    "source_ip": {
+      "type": ["string", "null"],
+      "format": "ipv4",
+      "description": "Source IP address (attacker)"
+    },
+    "destination": {
+      "type": ["string", "null"],
+      "description": "Destination host or service (e.g., 10.0.0.5:22 or ssh)"
+    },
+    "raw_log": {
+      "type": "string",
+      "description": "Original raw log line or JSON, unmodified"
+    },
+    "severity": {
+      "type": "string",
+      "description": "Event severity level",
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "low"
+    },
+    "correlation_id": {
+      "type": ["string", "null"],
+      "description": "Correlation ID (null at ingestion stage)"
+    },
+    "ip_address": {
+      "type": "object",
+      "description": "IP addresses involved in the event",
+      "properties": {
+        "source": {
+          "type": "string",
+          "format": "ipv4",
+          "description": "Source IP address"
+        },
+        "destination": {
+          "type": "string",
+          "format": "ipv4",
+          "description": "Destination IP address"
+        }
+      }
+    },
+    "port": {
+      "type": "object",
+      "description": "Network ports involved",
+      "properties": {
+        "source": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "destination": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "protocol": {
+      "type": "string",
+      "description": "Network protocol (TCP, UDP, ICMP, HTTP, SSH, etc.)",
+      "enum": [
+        "TCP",
+        "UDP",
+        "ICMP",
+        "HTTP",
+        "HTTPS",
+        "SSH",
+        "DNS",
+        "FTP",
+        "TLS",
+        "OTHER"
+      ]
+    },
+    "username": {
+      "type": "string",
+      "description": "Username attempted or authenticated"
+    },
+    "password_hash": {
+      "type": "string",
+      "description": "SHA256 hash of password attempt (if available, never store plaintext)"
+    },
+    "user_agent": {
+      "type": "string",
+      "description": "User-Agent header or client identification string"
+    },
+    "alert": {
+      "type": "object",
+      "description": "IDS/Network alert details",
+      "properties": {
+        "signature_id": {
+          "type": "integer",
+          "description": "Alert signature/rule ID"
+        },
+        "signature": {
+          "type": "string",
+          "description": "Alert message or description"
+        },
+        "category": {
+          "type": "string",
+          "description": "Alert category (e.g., 'Attempted User Privilege Gain')"
+        },
+        "severity_level": {
+          "type": "integer",
+          "description": "Alert severity (1=High, 2=Medium, 3=Low)"
+        }
+      }
+    },
+    "action": {
+      "type": "string",
+      "description": "Action taken in response to event",
+      "enum": [
+        "allowed",
+        "blocked",
+        "logged",
+        "redirected",
+        "quarantined",
+        "escalated"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable reason for the event or action"
+    },
+    "threat_analysis": {
+      "type": "object",
+      "description": "AI/ML threat analysis results",
+      "properties": {
+        "threat_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Computed threat score (0-100)"
+        },
+        "threat_level": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "analysis_reason": {
+          "type": "string",
+          "description": "Explanation of threat assessment"
+        },
+        "analysis_timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When analysis was performed"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional contextual metadata",
+      "additionalProperties": true,
+      "properties": {
+        "hostname": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "geo_ip": {
+          "type": "object",
+          "properties": {
+            "country": {
+              "type": "string"
+            },
+            "city": {
+              "type": "string"
+            },
+            "latitude": {
+              "type": "number"
+            },
+            "longitude": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "event_id": "550e8400-e29b-41d4-a716-446655440000",
+      "event_type": "login_attempt",
+      "timestamp": "2026-01-15T10:30:00Z",
+      "source": "http_api",
+      "sensor_id": "webserver-01",
+      "sensor_type": "auth",
+      "source_ip": "192.168.1.100",
+      "destination": "ssh",
+      "raw_log": "Failed password for invalid user admin from 192.168.1.100 port 55234 ssh2",
+      "severity": "medium",
+      "correlation_id": null,
+      "ip_address": {
+        "source": "192.168.1.100",
+        "destination": "10.0.0.1"
+      },
+      "username": "admin",
+      "user_agent": "Mozilla/5.0",
+      "action": "blocked",
+      "reason": "Failed authentication attempt"
+    },
+    {
+      "event_id": "660e8400-e29b-41d4-a716-446655440001",
+      "event_type": "network_alert",
+      "timestamp": "2026-01-15T10:35:00Z",
+      "source": "ids",
+      "sensor_id": "suricata-dmz-01",
+      "sensor_type": "suricata",
+      "source_ip": "203.0.113.45",
+      "destination": "10.0.0.50:443",
+      "raw_log": "{\"timestamp\":\"2026-01-15T10:35:00Z\",\"event_type\":\"alert\",...}",
+      "severity": "high",
+      "correlation_id": null,
+      "ip_address": {
+        "source": "203.0.113.45",
+        "destination": "10.0.0.50"
+      },
+      "port": {
+        "source": 54321,
+        "destination": 443
+      },
+      "protocol": "TCP",
+      "alert": {
+        "signature_id": 2100498,
+        "signature": "ET MALWARE User-Agent in HTTP Request",
+        "category": "Potential Malware Activity",
+        "severity_level": 1
+      },
+      "action": "logged"
+    },
+    {
+      "event_id": "770e8400-e29b-41d4-a716-446655440002",
+      "event_type": "honeypot_interaction",
+      "timestamp": "2026-01-15T10:40:00Z",
+      "source": "honeypot",
+      "sensor_id": "honeypot-01",
+      "severity": "medium",
+      "ip_address": {
+        "source": "203.0.113.99"
+      },
+      "username": "root",
+      "password_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "user_agent": "SSH-2.0-OpenSSH_7.4",
+      "action": "logged",
+      "reason": "SSH honeypot credential attempt captured"
+    }
+  ]
+}

@@ -1,0 +1,369 @@
+/**
+ * LiveEventStream.css
+ * 
+ * Minimal, readable styling for SOC event stream.
+ * Focus: Dense layout, severity color-coding, readability.
+ * No animations, no decorative elements.
+ */
+
+.live-event-stream {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0d1117;
+  color: #c9d1d9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
+  border: 1px solid rgba(88, 166, 255, 0.1);
+}
+
+/* Header */
+.stream-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(88, 166, 255, 0.1);
+  background: #010409;
+}
+
+.stream-title {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: #c9d1d9;
+}
+
+.event-count {
+  font-size: 0.85rem;
+  color: #8b949e;
+  margin-left: auto;
+}
+
+.connection-status {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.connection-status.connected {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.connection-status.disconnected {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+/* Empty state */
+.stream-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #8b949e;
+}
+
+.stream-empty p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.status-message {
+  font-size: 0.85rem;
+  color: #6e7681;
+  margin-top: 0.5rem;
+}
+
+/* Error state */
+.stream-error {
+  padding: 0.75rem 1rem;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  color: #f85149;
+  font-size: 0.9rem;
+}
+
+.stream-error p {
+  margin: 0;
+}
+
+/* Events container */
+.stream-events {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Individual event row */
+.event-row {
+  display: grid;
+  grid-template-columns: 85px 1fr 130px;
+  gap: 1rem;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid rgba(88, 166, 255, 0.05);
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.event-row:hover {
+  background: rgba(88, 166, 255, 0.08);
+}
+
+/* Severity color variants */
+.event-row.severity-critical {
+  border-left: 3px solid #f85149;
+}
+
+.event-row.severity-critical:hover {
+  background: rgba(248, 81, 73, 0.08);
+}
+
+.event-row.severity-high {
+  border-left: 3px solid #d29922;
+}
+
+.event-row.severity-high:hover {
+  background: rgba(210, 153, 34, 0.08);
+}
+
+.event-row.severity-medium {
+  border-left: 3px solid #d4a574;
+}
+
+.event-row.severity-medium:hover {
+  background: rgba(212, 165, 116, 0.08);
+}
+
+.event-row.severity-low {
+  border-left: 3px solid #3fb950;
+}
+
+.event-row.severity-low:hover {
+  background: rgba(63, 185, 80, 0.08);
+}
+
+/* New event highlight (500ms) */
+.event-row.new-event {
+  background: rgba(88, 166, 255, 0.12);
+  box-shadow: inset 0 0 8px rgba(88, 166, 255, 0.15);
+}
+
+/* Selected event (investigation mode - frozen while new events stream) */
+.event-row.selected-event {
+  background: rgba(88, 166, 255, 0.18);
+  border-right: 3px solid #58a6ff;
+  box-shadow: 
+    inset 0 0 12px rgba(88, 166, 255, 0.2),
+    inset 0 0 0 1px rgba(88, 166, 255, 0.15);
+}
+
+.event-row.selected-event:hover {
+  background: rgba(88, 166, 255, 0.22);
+  box-shadow: 
+    inset 0 0 12px rgba(88, 166, 255, 0.25),
+    inset 0 0 0 1px rgba(88, 166, 255, 0.15);
+}
+
+/* Timestamp column */
+.event-timestamp {
+  font-size: 0.85rem;
+  color: #8b949e;
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+/* Details column (center) */
+.event-details {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.event-type {
+  font-weight: 500;
+  color: #58a6ff;
+  flex-shrink: 0;
+}
+
+.source-ip {
+  color: #c9d1d9;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.separator {
+  color: #6e7681;
+  flex-shrink: 0;
+}
+
+.dest-ip {
+  color: #c9d1d9;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+/* Threat column (right) */
+.event-threat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.threat-score {
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  min-width: 35px;
+  text-align: right;
+}
+
+.threat-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Threat score colors */
+.severity-critical .threat-score {
+  color: #f85149;
+}
+
+.severity-high .threat-score {
+  color: #d29922;
+}
+
+.severity-medium .threat-score {
+  color: #d4a574;
+}
+
+.severity-low .threat-score {
+  color: #3fb950;
+}
+
+.severity-critical .threat-label {
+  color: #f85149;
+}
+
+.severity-high .threat-label {
+  color: #d29922;
+}
+
+.severity-medium .threat-label {
+  color: #d4a574;
+}
+
+.severity-low .threat-label {
+  color: #3fb950;
+}
+
+/* Footer */
+.stream-footer {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid rgba(88, 166, 255, 0.1);
+  background: #010409;
+  font-size: 0.8rem;
+  color: #6e7681;
+}
+
+.stream-footer p {
+  margin: 0;
+}
+
+/* Scrollbar styling */
+.stream-events::-webkit-scrollbar {
+  width: 8px;
+}
+
+.stream-events::-webkit-scrollbar-track {
+  background: rgba(88, 166, 255, 0.05);
+}
+
+.stream-events::-webkit-scrollbar-thumb {
+  background: rgba(88, 166, 255, 0.3);
+  border-radius: 4px;
+}
+
+.stream-events::-webkit-scrollbar-thumb:hover {
+  background: rgba(88, 166, 255, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .event-row {
+    grid-template-columns: 80px 1fr 100px;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .event-timestamp {
+    font-size: 0.8rem;
+  }
+
+  .event-details {
+    gap: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .threat-score {
+    font-size: 0.95rem;
+  }
+
+  .threat-label {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .event-row {
+    grid-template-columns: 70px 1fr 90px;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .event-timestamp {
+    font-size: 0.75rem;
+  }
+
+  .event-details {
+    gap: 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .source-ip,
+  .dest-ip {
+    font-size: 0.75rem;
+  }
+
+  .threat-score {
+    font-size: 0.9rem;
+    min-width: 30px;
+  }
+
+  .threat-label {
+    font-size: 0.65rem;
+    min-width: 50px;
+  }
+
+  .stream-header {
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .stream-title {
+    font-size: 0.9rem;
+  }
+
+  .event-count {
+    font-size: 0.75rem;
+  }
+}

@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY ingestor/ ./ingestor/
+COPY event_schema.json /app/event_schema.json
+
+EXPOSE ${INGESTOR_PORT:-5001}
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:${INGESTOR_PORT:-5001}/health || exit 1
+
+CMD ["python", "-m", "ingestor.main"]

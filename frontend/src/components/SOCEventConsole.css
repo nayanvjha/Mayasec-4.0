@@ -1,0 +1,259 @@
+/**
+ * SOCEventConsole.css
+ * 
+ * Main console container and layout.
+ * Three-section design: live stream (left) + details & timeline (right)
+ */
+
+.soc-event-console {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #0d1117;
+  color: #c9d1d9;
+  overflow: hidden;
+}
+
+/* Main layout: stream panel + investigation panel */
+.console-layout {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Live Event Stream Panel */
+.console-stream-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid rgba(88, 166, 255, 0.1);
+}
+
+/* Investigation Panel (contains details + timeline) */
+.console-investigation-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #010409;
+}
+
+.console-investigation-panel.investigation-active {
+  background: #010409;
+  border-left: 2px solid #58a6ff;
+}
+
+/* Details View (top section) */
+.investigation-details {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 1;
+  min-height: 200px;
+  border-bottom: 1px solid rgba(88, 166, 255, 0.1);
+}
+
+/* Timeline View (bottom section) */
+.investigation-timeline {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  min-height: 150px;
+}
+
+/* Event Details View */
+.event-details-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 0.9rem;
+}
+
+/* Details Header */
+.details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(88, 166, 255, 0.1);
+  background: #0d1117;
+  flex-shrink: 0;
+}
+
+.details-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #c9d1d9;
+}
+
+.close-button {
+  padding: 0.4rem 0.8rem;
+  background: rgba(88, 166, 255, 0.1);
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  color: #58a6ff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+
+.close-button:hover {
+  background: rgba(88, 166, 255, 0.15);
+}
+
+/* Details Content */
+.details-content {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Individual Detail Section */
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-section .label {
+  font-size: 0.85rem;
+  color: #8b949e;
+  font-weight: 500;
+}
+
+.detail-section .value {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  color: #c9d1d9;
+  word-break: break-all;
+  padding: 0.5rem;
+  background: rgba(88, 166, 255, 0.05);
+  border-left: 2px solid rgba(88, 166, 255, 0.2);
+  border-radius: 2px;
+}
+
+/* Raw Data Section */
+.detail-section.raw-data {
+  margin-top: 0.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-section.raw-data .value {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+/* Details Footer */
+.details-footer {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(88, 166, 255, 0.1);
+  background: #010409;
+  font-size: 0.8rem;
+  color: #6e7681;
+  flex-shrink: 0;
+}
+
+.details-footer p {
+  margin: 0;
+}
+
+/* No Selection State */
+.no-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6e7681;
+  font-size: 0.95rem;
+  text-align: center;
+  padding: 2rem 1rem;
+  gap: 0.75rem;
+}
+
+.no-selection p {
+  margin: 0;
+}
+
+.no-selection .hint {
+  font-size: 0.8rem;
+  color: #8b949e;
+  font-style: italic;
+}
+
+/* Scrollbar styling for details */
+.details-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.details-content::-webkit-scrollbar-track {
+  background: rgba(88, 166, 255, 0.05);
+}
+
+.details-content::-webkit-scrollbar-thumb {
+  background: rgba(88, 166, 255, 0.25);
+  border-radius: 3px;
+}
+
+.details-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(88, 166, 255, 0.4);
+}
+
+/* Responsive: Stack on smaller screens */
+@media (max-width: 1200px) {
+  .console-layout {
+    grid-template-columns: 1fr 280px;
+  }
+
+  .details-content {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .detail-section .value {
+    font-size: 0.85rem;
+    padding: 0.4rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .console-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .console-investigation-panel {
+    display: none;
+  }
+}
+
+/**
+ * Investigation Mode
+ * 
+ * When analyst selects an event:
+ * - Selection is frozen in place
+ * - New events continue streaming to top
+ * - Details + timeline panel remains open
+ * - Analyst can compare new events to selected baseline
+ * - Click selected event again to deselect and dismiss panel
+ * - Timeline shows all correlated events via correlation_id
+ */
+
+.investigation-details .detail-section .label {
+  color: #58a6ff;
+  font-weight: 500;
+  min-width: 120px;
+}

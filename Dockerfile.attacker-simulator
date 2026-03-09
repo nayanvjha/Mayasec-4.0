@@ -1,0 +1,22 @@
+FROM python:3.9-slim
+
+LABEL maintainer="MAYASEC"
+LABEL description="External attacker simulator for MAYASEC - generates realistic attack events"
+
+WORKDIR /app
+
+# Copy simulator script
+COPY attacker_simulator.py .
+
+# Install dependencies
+RUN pip install --no-cache-dir requests
+
+# Default command: 1-hour simulation, medium intensity
+# Can be overridden with docker run -e or docker-compose environment
+ENV MAYASEC_INGESTOR_URL=http://ingestor:5001
+ENV ATTACKER_TARGET_IP=192.168.1.100
+ENV ATTACKER_SOURCE_IP=203.0.113
+ENV DURATION=3600
+ENV INTENSITY=medium
+
+CMD ["sh", "-c", "python attacker_simulator.py --target ${MAYASEC_INGESTOR_URL} --target-ip ${ATTACKER_TARGET_IP} --source-ip ${ATTACKER_SOURCE_IP} --duration ${DURATION} --intensity ${INTENSITY}"]

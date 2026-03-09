@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign In | Secure Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(120deg, #a770ef 0%, #f6d365 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 850px;
+            height: 480px;
+            background: #fff;
+            box-shadow: 0 6px 24px rgba(27, 27, 57, 0.12);
+            border-radius: 22px;
+            display: flex;
+            overflow: hidden;
+        }
+        .left-panel {
+            width: 48%;
+            background: linear-gradient(135deg, #7f53ac 0%, #657ced 100%);
+            color: #fff;
+            padding: 50px 40px 50px 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+        .left-panel h1 {
+            font-size: 2.4rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+        }
+        .left-panel p {
+            font-size: 1.04rem;
+            opacity: 0.94;
+        }
+        /* Simple background abstract shapes */
+        .bg-shape {
+            position: absolute;
+            opacity: 0.22;
+            border-radius: 90px 160px 120px 100px;
+            background: #fff;
+            z-index: 1;
+            right: 0;
+            top: 20%;
+            width: 180px;
+            height: 180px;
+        }
+        .right-panel {
+            width: 52%;
+            padding: 55px 40px 50px 30px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .signin-title {
+            font-weight: 600;
+            font-size: 2rem;
+            color: #383c48;
+            margin-bottom: 18px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .input-icon-group {
+            position: relative;
+        }
+        .input-icon-group input {
+            width: 100%;
+            padding: 12px 14px 12px 40px;
+            border-radius: 25px;
+            border: 1px solid #e0e1ec;
+            font-size: 1rem;
+            letter-spacing: 0.03em;
+            background: #f8f9fc;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .input-icon-group input:focus {
+            border: 1.5px solid #a770ef;
+            background: #fff;
+        }
+        .input-icon-group .icon {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            width: 18px;
+            height: 18px;
+            opacity: 0.7;
+        }
+        .option-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        .remember-me input[type="checkbox"] {
+            transform: scale(1.1);
+            margin-right: 7px;
+        }
+        .forgot-link {
+            font-size: 0.97rem;
+            color: #8a7df1;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .forgot-link:hover {
+            color: #5941c6;
+        }
+        .btn-signin {
+            width: 100%;
+            padding: 12px 0;
+            font-size: 1.08rem;
+            font-weight: 600;
+            background: linear-gradient(100deg, #7f53ac 0%, #657ced 100%);
+            color: #fff;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-bottom: 16px;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(116, 56, 202, 0.1);
+        }
+        .btn-signin:hover {
+            background: linear-gradient(100deg, #657ced 0%, #7f53ac 100%);
+        }
+        .register-row {
+            text-align: center;
+            margin-top: 6px;
+            font-size: 1rem;
+        }
+        .register-row a {
+            color: #8a7df1;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .register-row a:hover {
+            color: #5941c6;
+        }
+        .error {
+            margin-bottom: 15px;
+            color: #d10000;
+            background: #ffeaea;
+            border: 1px solid #fcc;
+            padding: 8px 16px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        @media(max-width:900px) {
+            .container { width: 99vw; height: 98vw; min-width: 310px; min-height: 440px;}
+        }
+        @media(max-width:700px) {
+            .container, .left-panel, .right-panel { flex-direction: column; width: 100%; height: auto; }
+            .left-panel { padding: 35px 22px; }
+            .right-panel { padding: 35px 18px; }
+            .bg-shape { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Welcome Panel -->
+        <div class="left-panel">
+            <div style="position: relative; z-index:2;">
+                <h1>Client Company</h1>
+                <p>You can sign in to access with your <br> existing account.</p>
+            </div>
+            <div class="bg-shape"></div>
+        </div>
+        <!-- Right Sign-in Panel -->
+        <div class="right-panel">
+            <div class="signin-title">Sign In</div>
+            {% if error %}
+                <div class="error">{{ error }}</div>
+            {% endif %}
+            <form method="POST" action="/login">
+                <div class="form-group input-icon-group">
+                    <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" 
+                        viewBox="0 0 24 24"><path stroke-linecap="round" 
+                        stroke-linejoin="round" d="M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 
+                        100-8 4 4 0 000 8z"></path></svg>
+                    <input type="text" name="username" placeholder="Username or email" required>
+                </div>
+                <div class="form-group input-icon-group">
+                    <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" 
+                        viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="9" 
+                        rx="2" ry="2"></rect><path stroke-linecap="round" 
+                        stroke-linejoin="round" d="M7 11V7a5 5 0 0110 0v4"></path></svg>
+                    <input type="password" name="password" placeholder="Password" required>
+                </div>
+                <div class="option-row">
+                    <label class="remember-me">
+                        <input type="checkbox" name="remember"> Remember me
+                    </label>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+                <button type="submit" class="btn-signin">Sign In</button>
+            </form>
+            <div class="register-row">
+                New here? <a href="#">Create an Account</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,874 @@
+openapi: 3.0.0
+
+info:
+  title: Mayasec Control Plane API
+  version: 1.0.0
+  description: |
+    Control plane API for Mayasec threat analysis platform.
+    
+    **Responsibilities:**
+    - Query events and alerts from storage layer
+    - Health checks for all services
+    - Metrics (threat distribution, top IPs)
+    - No direct sensor access
+    
+    **Architecture:**
+    - Events: Sensors → Core → Storage → API
+    - Queries: API ← Repository (EventRepository, AlertRepository, StatisticsRepository)
+    - Health: API checks Core + Storage
+    
+    **Constraints:**
+    - No file system dependencies
+    - No direct database access (via repositories only)
+    - No sensor communication
+  contact:
+    name: Mayasec Security
+    url: https://mayasec.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Local development
+  - url: http://localhost:{port}
+    variables:
+      port:
+        default: '5000'
+        enum: ['5000', '8000', '9000']
+    description: Configurable port
+
+tags:
+  - name: Health
+    description: Service health checks
+  - name: Events
+    description: Event queries
+  - name: Alerts
+    description: Alert management and IP blocking
+  - name: Metrics
+    description: Threat metrics and analytics
+  - name: OpenAPI
+    description: API specification
+
+paths:
+  /health:
+    get:
+      summary: Quick health check
+      description: |
+        Quick health check of the storage layer.
+        Useful for load balancer probes.
+      operationId: quickHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /api/v1/health:
+    get:
+      summary: Quick health check
+      description: Quick health check of the storage layer.
+      operationId: health
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /api/v1/health/deep:
+    get:
+      summary: Deep health check
+      description: |
+        Comprehensive health check of all services:
+        - Core service (threat analysis)
+        - Storage layer (PostgreSQL)
+        - Honeypot service (optional)
+      operationId: deepHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: All services healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeepHealthStatus'
+        '503':
+          description: One or more services degraded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeepHealthStatus'
+
+  /api/v1/events:
+    get:
+      summary: List events
+      description: |
+        Query events from storage with optional filters.
+        
+        **Response Time:** 10-50ms
+        **Max Results:** 1000
+      operationId: listEvents
+      tags:
+        - Events
+      parameters:
+        - name: ip_address
+          in: query
+          required: false
+          description: Filter by source IP address
+          schema:
+            type: string
+            example: 192.168.1.1
+        - name: username
+          in: query
+          required: false
+          description: Filter by username
+          schema:
+            type: string
+            example: admin
+        - name: threat_level
+          in: query
+          required: false
+          description: Filter by threat level
+          schema:
+            type: string
+            enum:
+              - low
+              - medium
+              - high
+              - critical
+            example: high
+        - name: days
+          in: query
+          required: false
+          description: Query range in days
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+            example: 7
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+            example: 50
+      responses:
+        '200':
+          description: Event list retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventListResponse'
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/events/{event_id}:
+    get:
+      summary: Get event details
+      description: |
+        Retrieve complete details for a specific event.
+        
+        **Response Time:** 5-10ms
+      operationId: getEvent
+      tags:
+        - Events
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          description: Event ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/alerts:
+    get:
+      summary: List open alerts
+      description: |
+        Retrieve all open (unresolved) alerts.
+        
+        **Response Time:** 10-50ms
+        **Max Results:** 500
+      operationId: listAlerts
+      tags:
+        - Alerts
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum alerts to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Alert list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertListResponse'
+
+  /api/v1/alerts/block:
+    post:
+      summary: Block IP address
+      description: |
+        Add IP address to blocking list.
+        
+        Can be permanent or time-limited (default 24 hours).
+      operationId: blockIp
+      tags:
+        - Alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockIpRequest'
+      responses:
+        '200':
+          description: IP blocked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockIpResponse'
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/alerts/status/{ip_address}:
+    get:
+      summary: Check IP block status
+      description: |
+        Determine if an IP address is currently blocked.
+        
+        **Response Time:** 5ms
+      operationId: getIpBlockStatus
+      tags:
+        - Alerts
+      parameters:
+        - name: ip_address
+          in: path
+          required: true
+          description: IP address to check
+          schema:
+            type: string
+            format: ipv4
+            example: 192.168.1.1
+      responses:
+        '200':
+          description: Block status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IpStatusResponse'
+
+  /api/v1/metrics:
+    get:
+      summary: Get all metrics
+      description: |
+        Retrieve comprehensive metrics: threat distribution + top IPs.
+        
+        **Response Time:** 50-100ms
+      operationId: getMetrics
+      tags:
+        - Metrics
+      parameters:
+        - name: days
+          in: query
+          required: false
+          description: Analysis period
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  /api/v1/metrics/threat-distribution:
+    get:
+      summary: Threat level distribution
+      description: |
+        Get event count breakdown by threat level.
+        
+        Levels: low, medium, high, critical
+      operationId: getThreatDistribution
+      tags:
+        - Metrics
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+      responses:
+        '200':
+          description: Distribution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreatDistributionResponse'
+
+  /api/v1/metrics/top-ips:
+    get:
+      summary: Top attacking IPs
+      description: |
+        Get most active source IPs by event count.
+      operationId: getTopIps
+      tags:
+        - Metrics
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Top IPs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopIpsResponse'
+
+  /api/v1/metrics/threat-summary:
+    get:
+      summary: IP threat summary
+      description: |
+        Get aggregated threat data for specific IP.
+        
+        **Response Time:** 20-100ms
+      operationId: getThreatSummary
+      tags:
+        - Metrics
+      parameters:
+        - name: ip_address
+          in: query
+          required: true
+          description: IP address to analyze
+          schema:
+            type: string
+            format: ipv4
+            example: 192.168.1.1
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 7
+      responses:
+        '200':
+          description: Threat summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreatSummaryResponse'
+
+  /api/v1/openapi:
+    get:
+      summary: OpenAPI specification
+      description: Retrieve OpenAPI 3.0 specification (this document)
+      operationId: getOpenApi
+      tags:
+        - OpenAPI
+      responses:
+        '200':
+          description: OpenAPI spec
+          content:
+            application/json: {}
+
+components:
+  schemas:
+    # ═════════════════════════════════════════════════════════════════
+    # Health Schemas
+    # ═════════════════════════════════════════════════════════════════
+    
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+        - services
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+          description: Overall service status
+        timestamp:
+          type: string
+          format: date-time
+          description: Check timestamp
+        services:
+          type: object
+          properties:
+            storage:
+              type: string
+              enum:
+                - healthy
+                - unhealthy
+              description: Storage layer status
+
+    DeepHealthStatus:
+      type: object
+      required:
+        - status
+        - timestamp
+        - services
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        timestamp:
+          type: string
+          format: date-time
+        services:
+          type: object
+          properties:
+            storage:
+              type: object
+              properties:
+                status:
+                  type: string
+                response_time:
+                  type: string
+            core:
+              type: object
+              properties:
+                status:
+                  type: string
+                url:
+                  type: string
+            honeypot:
+              type: object
+              properties:
+                status:
+                  type: string
+                url:
+                  type: string
+                optional:
+                  type: boolean
+
+    # ═════════════════════════════════════════════════════════════════
+    # Event Schemas
+    # ═════════════════════════════════════════════════════════════════
+    
+    Event:
+      type: object
+      required:
+        - id
+        - timestamp
+        - event_type
+        - source_ip
+        - threat_level
+        - threat_score
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique event ID
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+        event_type:
+          type: string
+          enum:
+            - login_attempt
+            - honeypot_interaction
+            - network_alert
+            - failed_attempt
+            - generic_alert
+          description: Classification
+        source_ip:
+          type: string
+          format: ipv4
+          description: Source IP address
+        destination_ip:
+          type: string
+          format: ipv4
+          description: Destination IP address
+        username:
+          type: string
+          nullable: true
+          description: Associated username (if applicable)
+        threat_level:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+            - critical
+          description: Severity classification
+        threat_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Numeric threat score
+        description:
+          type: string
+          description: Event description
+        sensor_id:
+          type: string
+          description: Source sensor ID
+        metadata:
+          type: object
+          description: Additional event metadata
+
+    EventListResponse:
+      type: object
+      required:
+        - count
+        - events
+        - filters
+      properties:
+        count:
+          type: integer
+          description: Number of events returned
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        filters:
+          type: object
+          properties:
+            ip_address:
+              type: string
+              nullable: true
+            username:
+              type: string
+              nullable: true
+            threat_level:
+              type: string
+              nullable: true
+            days:
+              type: integer
+
+    EventResponse:
+      type: object
+      required:
+        - event
+      properties:
+        event:
+          $ref: '#/components/schemas/Event'
+
+    # ═════════════════════════════════════════════════════════════════
+    # Alert Schemas
+    # ═════════════════════════════════════════════════════════════════
+    
+    Alert:
+      type: object
+      required:
+        - id
+        - rule_id
+        - title
+        - severity
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        rule_id:
+          type: string
+          description: Associated rule ID
+        title:
+          type: string
+          description: Alert title
+        severity:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+            - critical
+        status:
+          type: string
+          enum:
+            - open
+            - acknowledged
+            - resolved
+          description: Alert status
+        created_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        event_ids:
+          type: array
+          items:
+            type: string
+          description: Related event IDs
+
+    AlertListResponse:
+      type: object
+      required:
+        - count
+        - alerts
+      properties:
+        count:
+          type: integer
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+
+    BlockIpRequest:
+      type: object
+      required:
+        - ip_address
+        - reason
+      properties:
+        ip_address:
+          type: string
+          format: ipv4
+          example: 192.168.1.1
+        reason:
+          type: string
+          example: Brute force attack
+        is_permanent:
+          type: boolean
+          default: false
+          description: If false, blocks for 24 hours
+
+    BlockIpResponse:
+      type: object
+      required:
+        - status
+        - ip_address
+        - reason
+      properties:
+        status:
+          type: string
+          enum:
+            - blocked
+          default: blocked
+        ip_address:
+          type: string
+        reason:
+          type: string
+        is_permanent:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    IpStatusResponse:
+      type: object
+      required:
+        - ip_address
+        - is_blocked
+      properties:
+        ip_address:
+          type: string
+        is_blocked:
+          type: boolean
+
+    # ═════════════════════════════════════════════════════════════════
+    # Metrics Schemas
+    # ═════════════════════════════════════════════════════════════════
+    
+    MetricsResponse:
+      type: object
+      required:
+        - period
+        - threat_distribution
+        - top_ips
+      properties:
+        period:
+          type: string
+          example: Last 7 days
+        threat_distribution:
+          type: object
+          properties:
+            low:
+              type: integer
+            medium:
+              type: integer
+            high:
+              type: integer
+            critical:
+              type: integer
+        top_ips:
+          type: array
+          items:
+            type: object
+            properties:
+              ip_address:
+                type: string
+              event_count:
+                type: integer
+
+    ThreatDistributionResponse:
+      type: object
+      required:
+        - period
+        - distribution
+      properties:
+        period:
+          type: string
+        distribution:
+          type: object
+          properties:
+            low:
+              type: integer
+            medium:
+              type: integer
+            high:
+              type: integer
+            critical:
+              type: integer
+
+    TopIpsResponse:
+      type: object
+      required:
+        - period
+        - limit
+        - ips
+      properties:
+        period:
+          type: string
+        limit:
+          type: integer
+        ips:
+          type: array
+          items:
+            type: object
+            properties:
+              ip_address:
+                type: string
+              event_count:
+                type: integer
+
+    ThreatSummaryResponse:
+      type: object
+      required:
+        - ip_address
+        - period
+        - summary
+      properties:
+        ip_address:
+          type: string
+        period:
+          type: string
+        summary:
+          type: object
+          properties:
+            event_count:
+              type: integer
+            avg_threat_score:
+              type: number
+            max_threat_score:
+              type: number
+            threat_levels:
+              type: object
+              properties:
+                low:
+                  type: integer
+                medium:
+                  type: integer
+                high:
+                  type: integer
+                critical:
+                  type: integer
+
+    # ═════════════════════════════════════════════════════════════════
+    # Error Schemas
+    # ═════════════════════════════════════════════════════════════════
+    
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error code or message
+        code:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message

@@ -1,0 +1,12 @@
+{
+  "api_url": "http://localhost:8000",
+  "sensor_id": "suricata-production",
+  "source": "suricata-eve",
+  "eve_json_path": "/var/log/suricata/eve.json",
+  "log_level": "INFO",
+  "batch_size": 20,
+  "batch_timeout": 5,
+  "max_retries": 3,
+  "retry_backoff": 2.0,
+  "read_timeout": 10
+}

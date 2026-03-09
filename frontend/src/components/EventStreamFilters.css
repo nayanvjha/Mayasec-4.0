@@ -1,0 +1,237 @@
+/**
+ * EventStreamFilters Styles
+ * 
+ * Live filter controls for the SOC Event Stream.
+ * Clean, functional UI with instant visual feedback.
+ */
+
+.event-stream-filters {
+  background: #0d1117;
+  border-bottom: 1px solid #30363d;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Filter Container */
+.filters-container {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Individual Filter Group */
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.filter-group.clear-button-group {
+  justify-content: flex-end;
+  min-width: auto;
+  margin-left: auto;
+}
+
+/* Filter Label */
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #79c0ff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Filter Input (Selects & Text Input) */
+.filter-input {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #e6edf3;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-input:hover {
+  border-color: #58a6ff;
+  background: #0d1117;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #79c0ff;
+  background: #0d1117;
+  box-shadow: 0 0 0 3px rgba(121, 192, 255, 0.1);
+}
+
+/* Select Dropdowns */
+.severity-select,
+.event-type-select,
+.time-window-select {
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2379c0ff' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px;
+}
+
+/* Text Input */
+.source-ip-input {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.3px;
+}
+
+.source-ip-input::placeholder {
+  color: #6e7681;
+}
+
+/* Clear Filters Button */
+.clear-filters-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f85149;
+  background: transparent;
+  border: 1px solid #f85149;
+  border-radius: 4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.clear-filters-btn:hover {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+.clear-filters-btn:active {
+  background: rgba(248, 81, 73, 0.25);
+}
+
+/* Filter Status */
+.filter-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(79, 195, 247, 0.1);
+  border-left: 2px solid #4fc3f7;
+  border-radius: 4px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #4fc3f7;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.status-text {
+  font-size: 11px;
+  color: #8b949e;
+  font-family: 'Courier New', monospace;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .filters-container {
+    gap: 10px;
+  }
+
+  .filter-group {
+    min-width: 140px;
+  }
+
+  .filter-input {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .filter-label {
+    font-size: 10px;
+  }
+
+  .clear-filters-btn {
+    padding: 5px 10px;
+    font-size: 10px;
+  }
+
+  .status-text {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .event-stream-filters {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .filters-container {
+    gap: 8px;
+    flex-direction: column;
+  }
+
+  .filter-group {
+    width: 100%;
+    min-width: unset;
+  }
+
+  .filter-group.clear-button-group {
+    margin-left: 0;
+    flex-direction: row;
+  }
+
+  .clear-filters-btn {
+    width: 100%;
+  }
+
+  .filter-input {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .filter-status {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .status-text {
+    word-break: break-word;
+  }
+}
+
+/* Accessibility */
+.filter-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dark mode is already implemented above */

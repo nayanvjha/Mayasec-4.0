@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MAYASEC Attacker Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>MAYASEC Attacker Console</h1>
+        <div class="status" id="status">Idle</div>
+      </header>
+
+      <section class="panel">
+        <h2>Target Configuration</h2>
+        <div class="grid">
+          <label>
+            Attack Runner URL
+            <input id="ingestorUrl" value="http://localhost:4001" />
+          </label>
+          <label>
+            Target Host
+            <input id="targetIp" value="victim-web" />
+          </label>
+          <label>
+            Attacker IP
+            <input id="attackerIp" value="203.0.113.10" />
+          </label>
+          <label>
+            Burst Count
+            <input id="burstCount" type="number" min="1" max="50" value="12" />
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Attack Actions</h2>
+        <div class="actions">
+          <button id="sshAttack">SSH Brute Force</button>
+          <button id="portScan">Port Scan</button>
+          <button id="webLogin">Web Login Failures</button>
+        </div>
+        <div class="log" id="log"></div>
+      </section>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

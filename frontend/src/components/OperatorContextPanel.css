@@ -1,0 +1,274 @@
+/**
+ * OperatorContextPanel Styles
+ * 
+ * Provides clean, readable layout for operator context information.
+ * Focus on readability and copy functionality without visual fluff.
+ */
+
+.operator-context-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+}
+
+/* Empty State */
+.context-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #8b949e;
+  font-size: 14px;
+}
+
+/* Scrollable Container */
+.operator-context-panel {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Section Container */
+.context-section {
+  border-bottom: 1px solid #30363d;
+  padding: 16px;
+}
+
+.context-section:last-of-type {
+  border-bottom: none;
+}
+
+/* Section Header */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #79c0ff;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Copy Button */
+.copy-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #8b949e;
+  background: transparent;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Courier New', monospace;
+}
+
+.copy-btn:hover {
+  color: #79c0ff;
+  border-color: #79c0ff;
+  background: rgba(121, 192, 255, 0.1);
+}
+
+.copy-btn.copied {
+  color: #3fb950;
+  border-color: #3fb950;
+  background: rgba(63, 185, 80, 0.1);
+}
+
+/* Section Content */
+.section-content {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #e6edf3;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  word-break: break-word;
+  white-space: pre-wrap;
+  user-select: all;
+}
+
+/* Raw Payload */
+.raw-payload {
+  font-family: 'Courier New', monospace;
+  margin: 0;
+}
+
+/* Parsed Fields */
+.parsed-fields {
+  font-family: 'Courier New', monospace;
+  margin: 0;
+}
+
+/* Detection Reason */
+.detection-reason {
+  white-space: normal;
+  padding: 12px;
+  min-height: 60px;
+}
+
+/* Severity Reasoning */
+.severity-reasoning {
+  white-space: normal;
+  padding: 12px;
+  min-height: 60px;
+}
+
+/* Correlation Explanation */
+.correlation-explanation {
+  white-space: normal;
+  padding: 12px;
+  min-height: 60px;
+}
+
+/* Footer with Metadata */
+.context-footer {
+  border-top: 1px solid #30363d;
+  padding: 12px 16px;
+  background: #0d1117;
+  font-size: 11px;
+}
+
+.metadata {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.meta-item {
+  color: #8b949e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta-item strong {
+  color: #79c0ff;
+  font-weight: 600;
+}
+
+/* Severity Badge */
+.severity-badge {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.severity-badge.severity-critical {
+  background: rgba(248, 81, 73, 0.2);
+  color: #f85149;
+}
+
+.severity-badge.severity-high {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+.severity-badge.severity-medium {
+  background: rgba(201, 209, 217, 0.2);
+  color: #d0d7de;
+}
+
+.severity-badge.severity-low {
+  background: rgba(63, 185, 80, 0.2);
+  color: #3fb950;
+}
+
+.severity-badge.severity-info {
+  background: rgba(88, 166, 255, 0.2);
+  color: #58a6ff;
+}
+
+/* Scrollbar Styling */
+.section-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.section-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.section-content::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+.section-content::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+.operator-context-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.operator-context-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.operator-context-panel::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+.operator-context-panel::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 1200px) {
+  .context-section {
+    padding: 12px;
+  }
+
+  .section-content {
+    max-height: 250px;
+    font-size: 11px;
+  }
+
+  .metadata {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .context-section {
+    padding: 10px;
+  }
+
+  .section-content {
+    max-height: 200px;
+    font-size: 10px;
+    padding: 10px;
+  }
+
+  .copy-btn {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .section-header h4 {
+    font-size: 12px;
+  }
+
+  .metadata {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

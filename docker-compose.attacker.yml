@@ -1,0 +1,60 @@
+version: '3.8'
+
+# Docker Compose configuration for MAYASEC with Attack Simulator
+# This extends the main docker-compose.yml with attacker service
+# 
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.attacker.yml up
+#   docker-compose -f docker-compose.yml -f docker-compose.attacker.yml run attacker \
+#     --target http://api:5000 --scenario escalating --duration 60
+
+services:
+  # Attack Simulator Service
+  attacker:
+    build:
+      context: .
+      dockerfile: Dockerfile.attacker
+    image: mayasec-attacker
+    container_name: mayasec-attacker
+    depends_on:
+      - api
+    environment:
+      # Can be overridden with --target flag
+      MAYASEC_API_URL: http://api:5000
+    networks:
+      - default
+    # Override entrypoint to allow custom arguments
+    entrypoint: ["python3", "attack_simulator.py"]
+    command: ["--target", "http://api:5000", "--scenario", "escalating", "--duration", "60"]
+    # Uncomment to keep container running
+    # stdin_open: true
+    # tty: true
+    # Disable if running one-shot
+    restart: "no"
+    volumes:
+      - ./attack_simulator.py:/app/attack_simulator.py:ro
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+# Alternatively: Run attacker on separate host
+# 
+# services:
+#   attacker:
+#     image: mayasec-attacker
+#     environment:
+#       MAYASEC_API_URL: http://192.168.1.100:5000
+#     networks:
+#       external_net:
+#         ipv4_address: 10.1.0.100
+#
+# networks:
+#   external_net:
+#     driver: bridge
+#     ipam:
+#       config:
+#         - subnet: 10.1.0.0/24

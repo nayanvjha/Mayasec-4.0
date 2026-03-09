@@ -1,0 +1,34 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    curl \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY mayasec_api.py .
+COPY repository.py .
+COPY policy_engine.py .
+COPY response_mode.py .
+COPY core/ ./core/
+
+# Expose port
+EXPOSE 5000
+
+# Set Python path to find modules
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=15s \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+# Run API service
+CMD ["python", "mayasec_api.py"]
