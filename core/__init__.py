@@ -32,6 +32,7 @@ from correlation_engine import CorrelationEngine as CorrelationIdEngine
 from response_plane import FirewallService, EnforcementService, ResponseEngine
 from policy_engine import PolicyEngine, ResponseMode
 from correlation_escalation import CorrelationEscalationEngine
+from core.behavioral_scorer import BehavioralScorer
 
 # Import repository layer
 from repository import EventRepository, AlertRepository, StatisticsRepository, DatabaseConfig
@@ -49,6 +50,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD', 'mayasec_secure_password')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_DIR = os.getenv('LOG_DIR', '/app/logs')
 API_URL = os.getenv('API_URL', 'http://api:5000')  # For WebSocket event emission
+BEHAVIORAL_MODEL_PATH = os.getenv('BEHAVIORAL_MODEL_PATH', '/app/model/behavioral_iso.pkl')
 
 # Ensure log directory exists
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -80,6 +82,15 @@ enforcement_service = EnforcementService(alert_repo, firewall_service)
 response_engine = ResponseEngine(enforcement_service)
 policy_engine = PolicyEngine(alert_repo)
 logger.info("Response plane initialized")
+
+# Behavioral anomaly scorer (loaded once, reused across all requests)
+behavioral_scorer = BehavioralScorer(BEHAVIORAL_MODEL_PATH)
+
+_BEHAVIORAL_FAIL_OPEN = {
+    'intent': 'Benign',
+    'anomaly_score': 0.0,
+    'deception_trigger': False,
+}
 
 
 class InputContract:
@@ -1053,6 +1064,35 @@ def status():
         },
         'timestamp': datetime.utcnow().isoformat() + 'Z'
     }), 200
+
+
+@app.route('/api/behavioral/score', methods=['POST'])
+def behavioral_score():
+    """Score ingress telemetry features with fail-open behavior for proxy safety."""
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            payload = {}
+
+        if isinstance(payload.get('features'), dict):
+            features = payload['features']
+        else:
+            # Support flat feature-vector payload directly in request body.
+            features = payload
+
+        result = behavioral_scorer.score(features)
+
+        # Enforce stable output schema regardless of scorer internals.
+        response = {
+            'intent': str(result.get('intent', 'Benign')),
+            'anomaly_score': float(result.get('anomaly_score', 0.0)),
+            'deception_trigger': bool(result.get('deception_trigger', False)),
+        }
+        return jsonify(response), 200
+
+    except Exception as e:
+        logger.error(f"Behavioral scoring failed (fail-open): {e}")
+        return jsonify(_BEHAVIORAL_FAIL_OPEN), 200
 
 
 @app.route('/api/policy', methods=['GET', 'POST'])

@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "trained_at": "2026-03-09T20:13:57.921279+00:00",
+  "feature_columns": [
+    "uri_length",
+    "body_length",
+    "num_params",
+    "has_sql_keywords",
+    "has_xss_patterns",
+    "user_agent_entropy",
+    "user_agent_known_tool",
+    "request_rate_60s",
+    "hour_of_day",
+    "byte_ratio",
+    "packet_rate",
+    "connection_count"
+  ],
+  "label_names": [
+    "normal",
+    "sqli",
+    "xss",
+    "brute_force",
+    "path_traversal",
+    "cmdi",
+    "dos",
+    "botnet",
+    "infiltration",
+    "probe"
+  ],
+  "score_threshold": 80,
+  "iso_weight": 0.6,
+  "xgb_weight": 0.4,
+  "metrics": {
+    "precision": 0.1087,
+    "recall": 1.0,
+    "f1": 0.196,
+    "false_positive_rate": 1.0,
+    "latency_per_req_ms": 0.0,
+    "test_samples": 34516,
+    "pass_precision": false,
+    "pass_recall": true,
+    "pass_latency": true,
+    "pass_fp_rate": false
+  },
+  "model_files": {
+    "isolation_forest": "/Volumes/Crucial/Dev/Mayasec-4.0-main/ml-service/models/isolation_forest.pkl",
+    "xgboost_classifier": "/Volumes/Crucial/Dev/Mayasec-4.0-main/ml-service/models/xgboost_classifier.pkl",
+    "feature_scaler": "/Volumes/Crucial/Dev/Mayasec-4.0-main/ml-service/models/feature_scaler.pkl"
+  }
+}

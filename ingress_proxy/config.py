@@ -50,6 +50,9 @@ SCORE_THRESHOLD = _get_int("SCORE_THRESHOLD", 80)
 RATE_LIMIT_PER_IP = _get_int("RATE_LIMIT_PER_IP", 200)
 REQUEST_LOGGING = _get_bool("REQUEST_LOGGING", True)
 PROXY_SENSOR_ID = os.environ.get("PROXY_SENSOR_ID", "ingress-proxy-01")  # Required for security_logs.sensor_id NOT NULL
+BEHAVIORAL_SCORE_URL = _validate_url("BEHAVIORAL_SCORE_URL", os.environ.get("BEHAVIORAL_SCORE_URL", "http://mayasec-core:5002/api/behavioral/score"))
+BEHAVIORAL_TIMEOUT_MS = _get_int("BEHAVIORAL_TIMEOUT_MS", 50)
+
 
 if ML_TIMEOUT_MS <= 0:
     raise ValueError("ML_TIMEOUT_MS must be > 0")

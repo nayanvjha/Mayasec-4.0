@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import importlib.util
 import logging
@@ -31,6 +32,15 @@ _ml_client = _load_local_module("ml_client")
 _telemetry_mirror = _load_local_module("telemetry_mirror")
 _router = _load_local_module("router")
 _rate_limiter = _load_local_module("rate_limiter")
+_config = _load_local_module("config")
+
+_WAF_FALLBACK = {"score": 0, "attack_type": "unknown"}
+_BEHAVIORAL_FALLBACK = {
+    "intent": "Benign",
+    "anomaly_score": 0.0,
+    "deception_trigger": False,
+}
+_SCORE_THRESHOLD = int(getattr(_config, "SCORE_THRESHOLD", 80))
 
 
 def _web() -> Any:
@@ -54,11 +64,33 @@ async def handle_request(request) -> Any:
 
     try:
         features = await _telemetry_mirror.extract_features(request)
-        scoring = await _ml_client.score_request(features)
-        score = int(scoring.get("score", 0))
-        attack_type = str(scoring.get("attack_type", "unknown"))
 
-        response = await _router.route_request(request, score, attack_type)
+        behavioral_fn = getattr(_ml_client, "behavioral_score_request", None)
+        behavioral_coro = (
+            behavioral_fn(features)
+            if callable(behavioral_fn)
+            else asyncio.sleep(0, result=dict(_BEHAVIORAL_FALLBACK))
+        )
+
+        waf_result, behavioral_result = await asyncio.gather(
+            _ml_client.score_request(features),
+            behavioral_coro,
+            return_exceptions=True,
+        )
+
+        if isinstance(waf_result, Exception) or not isinstance(waf_result, dict):
+            waf_result = dict(_WAF_FALLBACK)
+        if isinstance(behavioral_result, Exception) or not isinstance(behavioral_result, dict):
+            behavioral_result = dict(_BEHAVIORAL_FALLBACK)
+
+        waf_score = int(waf_result.get("score", 0))
+        attack_type = str(waf_result.get("attack_type", "unknown"))
+        deception_trigger = bool(behavioral_result.get("deception_trigger", False))
+
+        route_score = waf_score if not deception_trigger else max(waf_score, _SCORE_THRESHOLD)
+        routing_decision = "honeypot" if (waf_score >= _SCORE_THRESHOLD or deception_trigger) else "production"
+
+        response = await _router.route_request(request, route_score, attack_type)
 
         logger.info(
             "proxy_request %s",
@@ -66,8 +98,8 @@ async def handle_request(request) -> Any:
                 "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
                 "ip": client_ip,
                 "uri": request.path_qs,
-                "score": score,
-                "routing_decision": "honeypot" if score >= 80 else "production",
+                "score": waf_score,
+                "routing_decision": routing_decision,
             },
         )
         return response
