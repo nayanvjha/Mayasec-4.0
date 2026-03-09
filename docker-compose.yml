@@ -15,6 +15,8 @@ services:
       SCORE_THRESHOLD: "80"
       RATE_LIMIT_PER_IP: "200"
       PROXY_SENSOR_ID: ingress-proxy-01
+      BEHAVIORAL_SCORE_URL: http://mayasec-core:5001/api/behavioral/score
+      BEHAVIORAL_TIMEOUT_MS: "50"
     depends_on:
       ml-service:
         condition: service_healthy
@@ -22,7 +24,7 @@ services:
       - mayasec-net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,7 +43,7 @@ services:
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mayasec}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-mayasec}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -99,7 +101,7 @@ services:
     ports:
       - "5001:5001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5001/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -138,7 +140,7 @@ services:
     ports:
       - "5000:5000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -162,7 +164,7 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -178,7 +180,7 @@ services:
       dockerfile: Dockerfile
     ports: []
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:80/" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -189,18 +191,24 @@ services:
         aliases:
           - victim-web
 
-  # ML Service (placeholder for Phase 2 implementation)
+  # ML Service - Behavioral + WAF scoring
   ml-service:
     build:
       context: ./ml-service
       dockerfile: Dockerfile
+    volumes:
+      - ./ml-service/models:/app/models:ro
+    environment:
+      SCORE_THRESHOLD: "80"
+      LOG_LEVEL: INFO
+      MODELS_DIR: /app/models
     ports: []
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 30s
     restart: unless-stopped
     networks:
       - mayasec-net
@@ -221,7 +229,7 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
       interval: 10s
       timeout: 5s
       retries: 5
