@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+import uuid
 from typing import Optional
 
 import aiohttp
@@ -171,6 +172,10 @@ async def route_request(
         forward_headers = _filter_headers(request.headers)
         # Explicitly set Host to the upstream so the backend sees correct Host
         forward_headers["Host"] = _host_from_url(backend_base)
+        if destination_label == "honeypot":
+            forward_headers["X-MAYASEC-ATTACK-TYPE"] = str(attack_type)
+            forward_headers["X-MAYASEC-SCORE"] = str(score)
+            forward_headers["X-MAYASEC-SESSION"] = str(uuid.uuid4())
 
         session = _get_session()
 

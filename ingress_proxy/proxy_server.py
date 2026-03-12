@@ -32,7 +32,9 @@ _ml_client = _load_local_module("ml_client")
 _telemetry_mirror = _load_local_module("telemetry_mirror")
 _router = _load_local_module("router")
 _rate_limiter = _load_local_module("rate_limiter")
+_redis_client = _load_local_module("redis_client")
 _config = _load_local_module("config")
+_llm_waf_client = _load_local_module("llm_waf_client")
 
 _WAF_FALLBACK = {"score": 0, "attack_type": "unknown"}
 _BEHAVIORAL_FALLBACK = {
@@ -58,7 +60,13 @@ async def handle_request(request) -> Any:
     client_ip = request.remote or "unknown"
 
     # Gate 1 — Rate limit before any expensive downstream processing
-    if _rate_limiter.check_rate_limit(client_ip):
+    rate_check_fn = getattr(_rate_limiter, "check_rate_limit_async", None)
+    if callable(rate_check_fn):
+        is_limited = await rate_check_fn(client_ip)
+    else:
+        is_limited = _rate_limiter.check_rate_limit(client_ip)
+
+    if is_limited:
         logger.warning("rate_limited ip=%s", client_ip)
         return _web().Response(status=429, text="Too Many Requests")
 
@@ -85,12 +93,30 @@ async def handle_request(request) -> Any:
 
         waf_score = int(waf_result.get("score", 0))
         attack_type = str(waf_result.get("attack_type", "unknown"))
+        # Phase 4B: LLM second-pass for uncertain-zone WAF scores
+        uncertain_low = int(getattr(_config, "LLM_WAF_UNCERTAIN_LOW", 40))
+        uncertain_high = int(getattr(_config, "LLM_WAF_UNCERTAIN_HIGH", 80))
+        if uncertain_low <= waf_score < uncertain_high:
+            try:
+                llm_result = await _llm_waf_client.classify_zero_day(features, waf_score)
+                llm_adjusted = int(llm_result.get("adjusted_score", waf_score))
+                waf_score = max(waf_score, llm_adjusted)
+                if llm_result.get("is_attack"):
+                    attack_type = str(llm_result.get("attack_type", attack_type))
+            except Exception:
+                pass  # fail-open: keep original waf_score
         deception_trigger = bool(behavioral_result.get("deception_trigger", False))
 
         route_score = waf_score if not deception_trigger else max(waf_score, _SCORE_THRESHOLD)
         routing_decision = "honeypot" if (waf_score >= _SCORE_THRESHOLD or deception_trigger) else "production"
 
         response = await _router.route_request(request, route_score, attack_type)
+
+        if routing_decision == "honeypot":
+            # Fire-and-forget: send confirmed attack data to core for retraining
+            feedback_fn = getattr(_ml_client, "send_behavioral_feedback", None)
+            if callable(feedback_fn):
+                asyncio.ensure_future(feedback_fn(features, intent="Malicious", confirmed_by="honeypot"))
 
         logger.info(
             "proxy_request %s",
@@ -120,10 +146,25 @@ async def _on_startup(app) -> None:
     )
     app["session"] = session
     _ml_client.set_session(session)
+    _llm_waf_client.set_session(session)
     _router.set_session(session)
+
+    try:
+        redis_init_fn = getattr(_redis_client, "get_pool", None)
+        if callable(redis_init_fn):
+            await redis_init_fn()
+    except Exception as exc:
+        logger.warning("Redis init skipped: %s", exc)
 
 
 async def _on_cleanup(app) -> None:
+    try:
+        redis_close_fn = getattr(_redis_client, "close_pool", None)
+        if callable(redis_close_fn):
+            await redis_close_fn()
+    except Exception:
+        pass
+
     session = app.get("session")
     if session and not session.closed:
         await session.close()

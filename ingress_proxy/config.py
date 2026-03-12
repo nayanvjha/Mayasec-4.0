@@ -52,6 +52,18 @@ REQUEST_LOGGING = _get_bool("REQUEST_LOGGING", True)
 PROXY_SENSOR_ID = os.environ.get("PROXY_SENSOR_ID", "ingress-proxy-01")  # Required for security_logs.sensor_id NOT NULL
 BEHAVIORAL_SCORE_URL = _validate_url("BEHAVIORAL_SCORE_URL", os.environ.get("BEHAVIORAL_SCORE_URL", "http://mayasec-core:5002/api/behavioral/score"))
 BEHAVIORAL_TIMEOUT_MS = _get_int("BEHAVIORAL_TIMEOUT_MS", 50)
+BEHAVIORAL_FEEDBACK_URL = _validate_url(
+    "BEHAVIORAL_FEEDBACK_URL",
+    os.environ.get("BEHAVIORAL_FEEDBACK_URL", "http://core:5001/api/behavioral/feedback"),
+)
+BEHAVIORAL_FEEDBACK_TIMEOUT_MS = _get_int("BEHAVIORAL_FEEDBACK_TIMEOUT_MS", 200)
+LLM_WAF_URL = _validate_url(
+    "LLM_WAF_URL",
+    os.environ.get("LLM_WAF_URL", "http://llm-service:8002/classify-zero-day"),
+)
+LLM_WAF_TIMEOUT_MS = _get_int("LLM_WAF_TIMEOUT_MS", 500)
+LLM_WAF_UNCERTAIN_LOW = _get_int("LLM_WAF_UNCERTAIN_LOW", 40)
+LLM_WAF_UNCERTAIN_HIGH = _get_int("LLM_WAF_UNCERTAIN_HIGH", 80)
 
 
 if ML_TIMEOUT_MS <= 0:

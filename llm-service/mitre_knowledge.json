@@ -1,0 +1,80 @@
+{
+  "rules": [
+    {
+      "id": "T1190",
+      "name": "Exploit Public-Facing Application",
+      "tactic": "Initial Access",
+      "triggers": {
+        "attack_types": ["sqli", "xss", "cmdi", "path_traversal"],
+        "min_score": 80
+      }
+    },
+    {
+      "id": "T1110",
+      "name": "Brute Force",
+      "tactic": "Credential Access",
+      "triggers": {
+        "attack_types": ["brute_force"],
+        "min_request_rate": 50,
+        "uri_patterns": ["/login", "/auth", "/signin", "/api/token", "/oauth"]
+      }
+    },
+    {
+      "id": "T1046",
+      "name": "Network Service Discovery",
+      "tactic": "Discovery",
+      "triggers": {
+        "min_uri_path_diversity": 10,
+        "intents": ["Exploratory", "Malicious"]
+      }
+    },
+    {
+      "id": "T1078",
+      "name": "Valid Accounts",
+      "tactic": "Defense Evasion",
+      "triggers": {
+        "attack_types": ["brute_force"],
+        "intents": ["Malicious"],
+        "min_request_rate": 5,
+        "max_request_rate": 30,
+        "uri_patterns": ["/login", "/auth"]
+      }
+    },
+    {
+      "id": "T1071",
+      "name": "Application Layer Protocol",
+      "tactic": "Command and Control",
+      "triggers": {
+        "intents": ["Malicious"],
+        "graph_threat": true
+      }
+    },
+    {
+      "id": "T1595",
+      "name": "Active Scanning",
+      "tactic": "Reconnaissance",
+      "triggers": {
+        "min_uri_path_diversity": 15,
+        "min_request_rate": 30,
+        "intents": ["Exploratory"]
+      }
+    },
+    {
+      "id": "T1059",
+      "name": "Command and Scripting Interpreter",
+      "tactic": "Execution",
+      "triggers": {
+        "attack_types": ["cmdi"]
+      }
+    },
+    {
+      "id": "T1083",
+      "name": "File and Directory Discovery",
+      "tactic": "Discovery",
+      "triggers": {
+        "attack_types": ["path_traversal"],
+        "min_uri_path_diversity": 5
+      }
+    }
+  ]
+}

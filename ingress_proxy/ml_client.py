@@ -7,7 +7,14 @@ import logging
 import time
 from typing import Any
 
-from config import ML_SCORE_URL, ML_TIMEOUT_MS, BEHAVIORAL_SCORE_URL, BEHAVIORAL_TIMEOUT_MS
+from config import (
+    ML_SCORE_URL,
+    ML_TIMEOUT_MS,
+    BEHAVIORAL_SCORE_URL,
+    BEHAVIORAL_TIMEOUT_MS,
+    BEHAVIORAL_FEEDBACK_URL,
+    BEHAVIORAL_FEEDBACK_TIMEOUT_MS,
+)
 
 try:
     aiohttp = importlib.import_module("aiohttp")
@@ -102,3 +109,49 @@ async def behavioral_score_request(feature_vector: dict) -> dict:
             exc.__class__.__name__,
         )
         return dict(_BEHAVIORAL_DEFAULT)
+
+
+async def send_behavioral_feedback(
+    feature_vector: dict,
+    intent: str = 'Malicious',
+    confirmed_by: str = 'honeypot',
+) -> None:
+    """Fire-and-forget: send confirmed attack features to core for retraining. Never raises."""
+    if aiohttp is None:
+        return
+
+    t0 = time.monotonic()
+    timeout = aiohttp.ClientTimeout(total=BEHAVIORAL_FEEDBACK_TIMEOUT_MS / 1000.0)
+
+    payload = {
+        "feature_vector": feature_vector,
+        "intent": intent,
+        "confirmed_by": confirmed_by,
+    }
+
+    try:
+        session = await _get_session()
+        async with session.post(
+            BEHAVIORAL_FEEDBACK_URL,
+            json=payload,
+            timeout=timeout,
+        ) as resp:
+            if 200 <= resp.status < 300:
+                logger.info(
+                    "behavioral_feedback sent latency_ms=%.3f status=%d",
+                    (time.monotonic() - t0) * 1000.0,
+                    resp.status,
+                )
+            else:
+                logger.warning(
+                    "behavioral_feedback failed latency_ms=%.3f status=%d",
+                    (time.monotonic() - t0) * 1000.0,
+                    resp.status,
+                )
+    except Exception as exc:
+        logger.warning(
+            "behavioral_feedback error latency_ms=%.3f reason=%s",
+            (time.monotonic() - t0) * 1000.0,
+            exc.__class__.__name__,
+        )
+        return

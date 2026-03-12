@@ -16,6 +16,7 @@ No file system dependencies. Talks to core + storage only.
 
 import os
 import json
+import hmac
 import logging
 import threading
 import queue
@@ -27,6 +28,7 @@ from flask_cors import CORS
 from functools import wraps
 import requests
 from flask_sock import Sock
+from psycopg2.extras import RealDictCursor
 
 from repository import EventRepository, AlertRepository, StatisticsRepository, ResponseRepository, DatabaseConfig
 from policy_engine import PolicyEngine
@@ -42,13 +44,14 @@ class ApiConfig:
     def __init__(self):
         # Database (storage layer)
         self.db_host = os.getenv('DB_HOST', 'localhost')
-        self.db_port = os.getenv('DB_PORT', '5432')
+        self.db_port = int(os.getenv('DB_PORT', '5432'))
         self.db_name = os.getenv('DB_NAME', 'mayasec')
         self.db_user = os.getenv('DB_USER', 'mayasec')
         self.db_password = os.getenv('DB_PASSWORD', 'mayasec')
         
         # Core service (threat analysis)
         self.core_url = os.getenv('CORE_URL', 'http://localhost:5001')
+        self.llm_service_url = os.getenv('LLM_SERVICE_URL', 'http://localhost:8002')
         
         # Honeypot service (optional)
         self.honeypot_url = os.getenv('HONEYPOT_URL', 'http://localhost:5003')
@@ -74,6 +77,8 @@ class ApiConfig:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', '')
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # RAW WEBSOCKET STREAM (ONE-WAY)
@@ -82,6 +87,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_WS_EVENT_TYPES = {
     'event_ingested',
     'phase_escalated',
+    'escalation_triggered',
     'alert_created',
     'ip_blocked',
     'ip_unblocked',
@@ -189,6 +195,25 @@ def error_handler(f):
     return decorated_function
 
 
+def require_token(func):
+    """Require Authorization: Bearer <ADMIN_TOKEN> for protected endpoints."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        parts = auth_header.split(' ', 1)
+
+        if len(parts) != 2 or parts[0] != 'Bearer':
+            return jsonify({'error': 'unauthorized'}), 401
+
+        token = parts[1]
+        if not ADMIN_TOKEN or not hmac.compare_digest(token, ADMIN_TOKEN):
+            return jsonify({'error': 'unauthorized'}), 401
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # API CLASS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -257,6 +282,7 @@ class MayasecAPI:
         # Events
         self.app.route('/api/v1/events', methods=['GET'])(self._list_events)
         self.app.route('/api/v1/events/<event_id>', methods=['GET'])(self._get_event)
+        self.app.route('/api/v1/events/<event_id>/explain', methods=['GET'])(require_token(self._explain_event))
         
         # Alerts
         self.app.route('/api/v1/alerts', methods=['GET'])(self._list_alerts)
@@ -265,8 +291,13 @@ class MayasecAPI:
         self.app.route('/api/v1/alerts/unblock', methods=['POST'])(self._unblock_ip)
         self.app.route('/api/v1/alerts/status/<ip_address>', methods=['GET'])(self._get_ip_block_status)
 
-        # Event ingestion for streaming
-        self.app.route('/api/v1/emit-event', methods=['POST'])(self._emit_event)
+        # Event ingestion for streaming (protected to prevent event injection)
+        self.app.route('/api/v1/emit-event', methods=['POST'])(require_token(self._emit_event))
+        self.app.route('/api/v1/emit-alert', methods=['POST'])(require_token(self._emit_alert))
+        self.app.route('/api/v1/emit-escalation', methods=['POST'])(require_token(self._emit_escalation))
+        self.app.route('/api/v1/emit-response', methods=['POST'])(require_token(self._emit_response))
+        self.app.route('/api/v1/emit-policy', methods=['POST'])(require_token(self._emit_policy))
+        self.app.route('/api/v1/emit-policy-update', methods=['POST'])(require_token(self._emit_policy_update))
 
         # Raw WebSocket event stream
         self.sock.route('/ws/events')(self._ws_events)
@@ -276,6 +307,14 @@ class MayasecAPI:
         self.app.route('/api/v1/metrics/threat-distribution', methods=['GET'])(self._threat_distribution)
         self.app.route('/api/v1/metrics/top-ips', methods=['GET'])(self._top_ips)
         self.app.route('/api/v1/metrics/threat-summary', methods=['GET'])(self._threat_summary)
+        self.app.route('/api/v1/sessions/graph', methods=['GET'])(require_token(self._sessions_graph))
+        self.app.route('/api/v1/behavioral/history', methods=['GET'])(require_token(self._behavioral_history))
+        self.app.route('/api/v1/behavioral/sessions', methods=['GET'])(require_token(self._behavioral_sessions))
+        self.app.route('/api/v1/behavioral/drift', methods=['GET'])(require_token(self._behavioral_drift))
+        self.app.route('/api/v1/mitre/summary', methods=['GET'])(require_token(self._mitre_summary))
+        self.app.route('/api/v1/copilot/query', methods=['POST'])(require_token(self._copilot_query))
+        self.app.route('/api/v1/copilot/history', methods=['GET'])(require_token(self._copilot_history))
+        self.app.route('/api/v1/copilot/history', methods=['DELETE'])(require_token(self._copilot_clear))
         
         logger.info("API routes registered")
     
@@ -685,6 +724,77 @@ class MayasecAPI:
         }), 200
 
     @error_handler
+    def _explain_event(self, event_id: str):
+        """Generate LLM threat narrative for an event."""
+        event = self.event_repo.get_event_by_id(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+
+        payload = {
+            'event_type': event.get('event_type', ''),
+            'source_ip': event.get('ip_address', event.get('source_ip', '')),
+            'uri': event.get('uri', event.get('path', '/')),
+            'http_verb': event.get('http_method', event.get('http_verb', 'GET')),
+            'score': event.get('score', event.get('waf_score', 0)) or 0,
+            'attack_type': event.get('attack_type', 'unknown'),
+            'intent': event.get('intent', event.get('predicted_intent', 'Benign')),
+            'anomaly_score': event.get('anomaly_score', 0.0) or 0.0,
+            'graph_threat': bool(event.get('graph_threat', False)),
+            'deception_trigger': bool(event.get('deception_trigger', False)),
+            'timestamp': event.get('timestamp', datetime.utcnow().isoformat()),
+            'session_request_count': event.get('session_request_count', 0) or 0,
+            'uri_path_diversity': event.get('uri_path_diversity', 0) or 0,
+            'ua_change_detected': bool(event.get('ua_change_detected', False)),
+            'request_rate_60s': event.get('request_rate_60s', 0) or 0,
+            'body': event.get('request_body', event.get('body', '')),
+            'content_type': event.get('content_type', ''),
+            'user_agent': event.get('user_agent', ''),
+            'query_params': event.get('query_params', ''),
+        }
+
+        try:
+            resp = requests.post(
+                f"{self.config.llm_service_url}/explain",
+                json=payload,
+                timeout=max(10, self.config.health_timeout),
+            )
+
+            if resp.status_code != 200:
+                logger.warning("LLM explain failed with status=%s", resp.status_code)
+                return jsonify({
+                    'event_id': event_id,
+                    'narrative': (
+                        f"Event {event_id}: {payload['attack_type']} from "
+                        f"{payload['source_ip']} targeting {payload['uri']} "
+                        f"with score {payload['score']}/100."
+                    ),
+                    'confidence': 0.0,
+                    'mitre_ttps': [],
+                    'latency_ms': None,
+                    'provider': 'fallback',
+                }), 200
+
+            data = resp.json() if resp.content else {}
+            data['event_id'] = event_id
+            data.setdefault('provider', 'llm-service')
+            return jsonify(data), 200
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"LLM explain proxy error: {e}")
+            return jsonify({
+                'event_id': event_id,
+                'narrative': (
+                    f"Event {event_id}: {payload['attack_type']} from "
+                    f"{payload['source_ip']} targeting {payload['uri']} "
+                    f"with score {payload['score']}/100."
+                ),
+                'confidence': 0.0,
+                'mitre_ttps': [],
+                'latency_ms': None,
+                'provider': 'fallback',
+                'warning': 'llm_unavailable',
+            }), 200
+
+    @error_handler
     def _emit_event(self):
         """Receive event and broadcast to raw WebSocket clients"""
         event_data = request.get_json(silent=True) or {}
@@ -698,6 +808,81 @@ class MayasecAPI:
             'status': 'accepted',
             'event': event_data
         }), 201
+
+    @error_handler
+    def _emit_alert(self):
+        """Receive alert payload and broadcast to raw WebSocket clients."""
+        alert_data = request.get_json(silent=True) or {}
+
+        if not isinstance(alert_data, dict) or not alert_data:
+            raise ValueError("Alert payload required")
+
+        self.ws_broadcaster.broadcast('alert_created', alert_data)
+
+        return jsonify({
+            'status': 'accepted',
+            'alert': alert_data
+        }), 200
+
+    @error_handler
+    def _emit_escalation(self):
+        """Receive escalation payload and broadcast to raw WebSocket clients."""
+        escalation_data = request.get_json(silent=True) or {}
+
+        if not isinstance(escalation_data, dict) or not escalation_data:
+            raise ValueError("Escalation payload required")
+
+        self.ws_broadcaster.broadcast('escalation_triggered', escalation_data)
+
+        return jsonify({
+            'status': 'accepted',
+            'escalation': escalation_data
+        }), 200
+
+    @error_handler
+    def _emit_response(self):
+        """Receive response action payload and broadcast to raw WebSocket clients."""
+        response_data = request.get_json(silent=True) or {}
+
+        if not isinstance(response_data, dict) or not response_data:
+            raise ValueError("Response payload required")
+
+        self.ws_broadcaster.broadcast('ip_blocked', response_data)
+
+        return jsonify({
+            'status': 'accepted',
+            'response': response_data
+        }), 200
+
+    @error_handler
+    def _emit_policy(self):
+        """Receive policy decision payload and broadcast to raw WebSocket clients."""
+        policy_data = request.get_json(silent=True) or {}
+
+        if not isinstance(policy_data, dict) or not policy_data:
+            raise ValueError("Policy payload required")
+
+        self.ws_broadcaster.broadcast('response_decision', policy_data)
+
+        return jsonify({
+            'status': 'accepted',
+            'policy': policy_data
+        }), 200
+
+    @error_handler
+    def _emit_policy_update(self):
+        """Receive policy configuration update and broadcast to raw WebSocket clients."""
+        policy_update = request.get_json(silent=True) or {}
+
+        if not isinstance(policy_update, dict) or not policy_update:
+            raise ValueError("Policy update payload required")
+
+        self.ws_broadcaster.broadcast('response_decision', policy_update)
+
+        return jsonify({
+            'status': 'accepted',
+            'policy_update': policy_update
+        }), 200
 
     def _record_response_decision(self, payload: Dict[str, Any]) -> None:
         try:
@@ -1007,6 +1192,159 @@ class MayasecAPI:
             'period': f"Last {days} days",
             'summary': summary
         }), 200
+
+    @error_handler
+    def _sessions_graph(self):
+        """Proxy session graph snapshot from core service for SOC dashboards."""
+        try:
+            forward_headers = {}
+            auth_header = request.headers.get('Authorization')
+            if auth_header:
+                forward_headers['Authorization'] = auth_header
+
+            admin_token = request.headers.get('X-Admin-Token')
+            if admin_token:
+                forward_headers['X-Admin-Token'] = admin_token
+
+            response = requests.get(
+                f"{self.config.core_url}/api/sessions/graph",
+                headers=forward_headers,
+                timeout=self.config.health_timeout,
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    "Session graph proxy failed status=%s",
+                    response.status_code,
+                )
+                return jsonify([]), 200
+
+            return jsonify(response.json()), 200
+        except Exception as e:
+            logger.warning(f"Session graph proxy error: {e}")
+            return jsonify([]), 200
+
+    @error_handler
+    def _behavioral_history(self):
+        """Proxy behavioral history query to core service."""
+        params = {}
+        ip = request.args.get('ip')
+        hours = request.args.get('hours')
+        limit = request.args.get('limit')
+        if ip is not None:
+            params['ip'] = ip
+        if hours is not None:
+            params['hours'] = hours
+        if limit is not None:
+            params['limit'] = limit
+
+        try:
+            response = requests.get(
+                f"{self.config.core_url}/api/behavioral/history",
+                params=params,
+                timeout=10,
+            )
+            return jsonify(response.json()), response.status_code
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Behavioral history proxy error: {e}")
+            return jsonify({'error': 'core_unavailable', 'message': str(e)}), 503
+
+    @error_handler
+    def _behavioral_sessions(self):
+        """Proxy behavioral session graph snapshot to core service."""
+        try:
+            response = requests.get(
+                f"{self.config.core_url}/api/behavioral/sessions",
+                timeout=10,
+            )
+            return jsonify(response.json()), response.status_code
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Behavioral sessions proxy error: {e}")
+            return jsonify({'error': 'core_unavailable', 'message': str(e)}), 503
+
+    @error_handler
+    def _behavioral_drift(self):
+        """Proxy behavioral drift state to core service."""
+        try:
+            response = requests.get(
+                f"{self.config.core_url}/api/behavioral/drift",
+                timeout=10,
+            )
+            return jsonify(response.json()), response.status_code
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Behavioral drift proxy error: {e}")
+            return jsonify({'error': 'core_unavailable', 'message': str(e)}), 503
+
+    @error_handler
+    def _mitre_summary(self):
+        """Aggregate MITRE ATT&CK TTP frequency from security_logs."""
+        hours = int(request.args.get('hours', 24))
+        conn = None
+        try:
+            conn = self.event_repo.get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(
+                '''
+                SELECT
+                    ttp->>'id' AS ttp_id,
+                    ttp->>'name' AS ttp_name,
+                    ttp->>'tactic' AS tactic,
+                    COUNT(*) AS count
+                FROM security_logs,
+                     jsonb_array_elements(COALESCE(mitre_ttps, '[]'::jsonb)) AS ttp
+                WHERE created_at >= NOW() - (%s * INTERVAL '1 hour')
+                GROUP BY ttp->>'id', ttp->>'name', ttp->>'tactic'
+                ORDER BY count DESC
+                ''',
+                (hours,),
+            )
+            rows = cursor.fetchall()
+            cursor.close()
+            return jsonify({'ttps': [dict(r) for r in rows], 'hours': hours}), 200
+        except Exception as e:
+            logger.error(f"MITRE summary failed: {e}")
+            return jsonify({'error': str(e)}), 500
+        finally:
+            if conn:
+                self.event_repo.return_connection(conn)
+
+    @error_handler
+    def _copilot_query(self):
+        copilot_url = os.getenv('COPILOT_URL', 'http://soc-copilot:8003')
+        try:
+            data = request.get_json(force=True)
+            response = requests.post(f"{copilot_url}/query", json=data, timeout=20)
+            return jsonify(response.json()), response.status_code
+        except requests.exceptions.RequestException as e:
+            return jsonify({'error': 'copilot_unavailable', 'message': str(e)}), 503
+
+    @error_handler
+    def _copilot_history(self):
+        copilot_url = os.getenv('COPILOT_URL', 'http://soc-copilot:8003')
+        session_id = request.args.get('session_id', 'default')
+        try:
+            response = requests.get(
+                f"{copilot_url}/history",
+                params={'session_id': session_id},
+                timeout=5,
+            )
+            return jsonify(response.json()), response.status_code
+        except requests.exceptions.RequestException as e:
+            return jsonify({'error': 'copilot_unavailable', 'message': str(e)}), 503
+
+    @error_handler
+    def _copilot_clear(self):
+        copilot_url = os.getenv('COPILOT_URL', 'http://soc-copilot:8003')
+        session_id = request.args.get('session_id', 'default')
+        try:
+            response = requests.delete(
+                f"{copilot_url}/history",
+                params={'session_id': session_id},
+                timeout=5,
+            )
+            return jsonify(response.json()), response.status_code
+        except requests.exceptions.RequestException as e:
+            return jsonify({'error': 'copilot_unavailable', 'message': str(e)}), 503
     
     def run(self, port: Optional[int] = None, debug: bool = False):
         """Run the API server"""

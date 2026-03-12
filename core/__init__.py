@@ -19,6 +19,7 @@ Non-responsibilities:
 import os
 import logging
 import json
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from flask import Flask, request, jsonify
@@ -33,6 +34,10 @@ from response_plane import FirewallService, EnforcementService, ResponseEngine
 from policy_engine import PolicyEngine, ResponseMode
 from correlation_escalation import CorrelationEscalationEngine
 from core.behavioral_scorer import BehavioralScorer
+from core.session_graph import SessionGraph
+from core.response_escalator import ResponseEscalator
+from core.drift_detector import DriftDetector
+from core.retrain_scheduler import RetrainScheduler
 
 # Import repository layer
 from repository import EventRepository, AlertRepository, StatisticsRepository, DatabaseConfig
@@ -50,6 +55,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD', 'mayasec_secure_password')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_DIR = os.getenv('LOG_DIR', '/app/logs')
 API_URL = os.getenv('API_URL', 'http://api:5000')  # For WebSocket event emission
+ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', '')  # Bearer token for authenticated API calls
 BEHAVIORAL_MODEL_PATH = os.getenv('BEHAVIORAL_MODEL_PATH', '/app/model/behavioral_iso.pkl')
 
 # Ensure log directory exists
@@ -65,6 +71,14 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger('Core')
+
+# Startup warning for known multi-worker in-memory state limitation.
+try:
+    _gunicorn_workers = os.getenv('GUNICORN_WORKERS')
+    if _gunicorn_workers is not None and int(_gunicorn_workers) > 1:
+        logger.warning("In-memory session state may not synchronize across workers.")
+except (TypeError, ValueError):
+    pass
 
 # Create Flask app
 app = Flask(__name__)
@@ -85,12 +99,96 @@ logger.info("Response plane initialized")
 
 # Behavioral anomaly scorer (loaded once, reused across all requests)
 behavioral_scorer = BehavioralScorer(BEHAVIORAL_MODEL_PATH)
+# Session correlation graph singleton (loaded once, shared across all requests)
+session_graph = SessionGraph()
+# Response escalator singleton (loaded once, shared across all requests)
+response_escalator = ResponseEscalator()
+# Drift detector for model staleness checks
+drift_detector = DriftDetector()
+
+# Background retraining scheduler (daemon thread).
+def _retrain_ws_emitter(event_name: str, payload: dict) -> None:
+    """Bridge retrain scheduler events to the existing websocket emitter."""
+    try:
+        emit_event_to_websocket({'retrain_event': event_name, **payload})
+    except Exception:
+        pass
+
+try:
+    retrain_scheduler = RetrainScheduler(
+        behavioral_scorer=behavioral_scorer,
+        drift_detector=drift_detector,
+        event_repo=event_repo,
+        websocket_emitter=_retrain_ws_emitter,
+    )
+    retrain_scheduler.start()
+    logger.info("RetrainScheduler started")
+except Exception as _retrain_err:
+    logger.warning("RetrainScheduler failed to start: %s", _retrain_err)
+    retrain_scheduler = None
 
 _BEHAVIORAL_FAIL_OPEN = {
     'intent': 'Benign',
     'anomaly_score': 0.0,
     'deception_trigger': False,
+    'graph_threat': False,
+    'escalation_tier': 0,
 }
+
+
+def _extract_session_graph_fields(event_like: Dict[str, Any]) -> Tuple[Optional[str], str, Optional[str]]:
+    """Extract (ip, path, session_id) from normalized/ingress-style payloads."""
+    if not isinstance(event_like, dict):
+        return None, '/', None
+
+    # Source IP extraction (normalized and ingress-style payloads).
+    ip = event_like.get('source_ip')
+    if not ip:
+        ip_address = event_like.get('ip_address')
+        if isinstance(ip_address, dict):
+            ip = ip_address.get('source') or ip_address.get('src')
+
+    # Path extraction (normalized and ingress-style payloads).
+    path = event_like.get('path') or event_like.get('uri')
+    if not path:
+        http = event_like.get('http')
+        if isinstance(http, dict):
+            path = http.get('path') or http.get('uri')
+
+    # Stable session identifier preference order.
+    sid = (
+        event_like.get('correlation_id')
+        or event_like.get('session_id')
+        or event_like.get('event_id')
+    )
+
+    return str(ip) if ip is not None else None, str(path or '/'), str(sid) if sid is not None else None
+
+
+def _update_session_graph(event_like: Dict[str, Any]) -> None:
+    """Best-effort ingest into the shared session correlation graph."""
+    ip, path, sid = _extract_session_graph_fields(event_like)
+
+    if not ip:
+        return
+
+    session_graph.add_event(
+        ip=ip,
+        path=path,
+        session_id=sid,
+    )
+
+
+def _get_graph_threat_for_request(event_like: Dict[str, Any]) -> bool:
+    """Safely resolve graph threat signal for current request context.
+
+    Uses the O(1) direct lookup on SessionGraph instead of a full snapshot scan.
+    """
+    try:
+        ip, path, sid = _extract_session_graph_fields(event_like)
+        return session_graph.get_threat(session_id=sid, ip=ip, path=path)
+    except Exception:
+        return False
 
 
 class InputContract:
@@ -592,6 +690,12 @@ def _get_historical_data(event: Dict[str, Any]) -> Dict[str, Any]:
 # WEBSOCKET EVENT EMISSION (Push to API for broadcast)
 # ============================================================================
 
+def _api_auth_headers() -> Dict[str, str]:
+    """Build authorization headers for internal core→API calls."""
+    if ADMIN_TOKEN:
+        return {'Authorization': f'Bearer {ADMIN_TOKEN}'}
+    return {}
+
 def emit_event_to_websocket(event_data: Dict[str, Any]) -> bool:
     """
     Emit successfully-stored event to API WebSocket channel.
@@ -608,10 +712,11 @@ def emit_event_to_websocket(event_data: Dict[str, Any]) -> bool:
         response = requests.post(
             f"{API_URL}/api/v1/emit-event",
             json=event_data,
+            headers=_api_auth_headers(),
             timeout=5
         )
         
-        if response.status_code == 200:
+        if response.status_code in (200, 201):
             logger.info(f"Event {event_data.get('id', 'unknown')} emitted to WebSocket")
             return True
         else:
@@ -639,6 +744,7 @@ def emit_alert_to_websocket(alert_data: Dict[str, Any]) -> bool:
         response = requests.post(
             f"{API_URL}/api/v1/emit-alert",
             json=alert_data,
+            headers=_api_auth_headers(),
             timeout=5
         )
         
@@ -670,6 +776,7 @@ def emit_response_to_websocket(response_data: Dict[str, Any]) -> bool:
         response = requests.post(
             f"{API_URL}/api/v1/emit-response",
             json=response_data,
+            headers=_api_auth_headers(),
             timeout=5
         )
 
@@ -695,6 +802,7 @@ def emit_policy_decision_to_websocket(decision_data: Dict[str, Any]) -> bool:
         response = requests.post(
             f"{API_URL}/api/v1/emit-policy",
             json=decision_data,
+            headers=_api_auth_headers(),
             timeout=5
         )
 
@@ -717,6 +825,7 @@ def emit_policy_update_to_websocket(policy_data: Dict[str, Any]) -> bool:
         response = requests.post(
             f"{API_URL}/api/v1/emit-policy-update",
             json=policy_data,
+            headers=_api_auth_headers(),
             timeout=5
         )
         if response.status_code == 200:
@@ -727,6 +836,94 @@ def emit_policy_update_to_websocket(policy_data: Dict[str, Any]) -> bool:
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to emit policy update to WebSocket: {e}")
         return False
+
+
+def emit_escalation_to_websocket(escalation_data: Dict[str, Any]) -> bool:
+    """Emit behavioral escalation events to API WebSocket channel."""
+    try:
+        response = requests.post(
+            f"{API_URL}/api/v1/emit-escalation",
+            json=escalation_data,
+            headers=_api_auth_headers(),
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            logger.info(f"Escalation emitted for {escalation_data.get('ip', 'unknown')}")
+            return True
+        logger.warning(f"Failed to emit escalation: API returned {response.status_code}")
+        return False
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to emit escalation to WebSocket: {e}")
+        return False
+
+
+def _tag_event_ttps(event_id: str, event_data: Dict[str, Any]) -> None:
+    """Fire-and-forget: classify and store MITRE TTPs for an event."""
+    conn = None
+    cursor = None
+    try:
+        llm_url = os.getenv("LLM_SERVICE_URL", "http://llm-service:8002")
+
+        metadata = event_data.get('metadata') if isinstance(event_data.get('metadata'), dict) else {}
+        raw_log = str(event_data.get('raw_log', '') or '')
+        uri = str(
+            event_data.get('uri')
+            or event_data.get('path')
+            or metadata.get('uri')
+            or metadata.get('path')
+            or raw_log
+        )[:500]
+
+        source_ip = ''
+        ip_address = event_data.get('ip_address')
+        if isinstance(ip_address, dict):
+            source_ip = str(ip_address.get('source') or ip_address.get('src') or '')
+        else:
+            source_ip = str(event_data.get('source_ip') or event_data.get('ip_address') or '')
+
+        payload = {
+            'event_type': str(event_data.get('event_type', '')),
+            'attack_type': str(event_data.get('attack_type', 'normal')),
+            'source_ip': source_ip,
+            'uri': uri,
+            'score': int(event_data.get('threat_score', 0) or 0),
+            'intent': str(event_data.get('intent', 'Benign')),
+            'graph_threat': bool(event_data.get('graph_threat', False)),
+            'uri_path_diversity': int(event_data.get('uri_path_diversity', 0) or 0),
+            'request_rate_60s': int(event_data.get('request_rate_60s', 0) or 0),
+        }
+
+        resp = requests.post(
+            f"{llm_url}/classify-ttp",
+            json=payload,
+            timeout=5,
+        )
+
+        if resp.status_code != 200:
+            return
+
+        ttps = resp.json().get('ttps', [])
+        if not ttps:
+            return
+
+        conn = event_repo.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE security_logs SET mitre_ttps = %s::jsonb WHERE event_id = %s",
+            (json.dumps(ttps), event_id),
+        )
+        conn.commit()
+    except Exception as exc:
+        logger.debug("TTP tagging failed for event %s: %s", event_id, exc)
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+        except Exception:
+            pass
+        if conn:
+            event_repo.return_connection(conn)
 
 
 # ============================================================================
@@ -823,6 +1020,8 @@ def process_events():
             try:
                 # Guarantee correlation_id BEFORE response/enforcement
                 event = correlation_id_engine.guarantee_correlation_id(event)
+                # Update shared in-memory session correlation graph.
+                _update_session_graph(event)
                 # Threat analysis (orchestrated with injected dependencies)
                 analysis_result = threat_analysis_engine.analyze(event)
                 
@@ -837,6 +1036,17 @@ def process_events():
                 if event_repo.create_event(event, analysis_result):
                     processed += 1
                     logger.info(f"Processed event {event_id} - Score: {analysis_result['threat_score']}")
+
+                    ttp_event_data = {
+                        **event,
+                        'threat_score': analysis_result.get('threat_score', 0),
+                        'graph_threat': bool(analysis_result.get('graph_threat', False)),
+                    }
+                    threading.Thread(
+                        target=_tag_event_ttps,
+                        args=(str(event_id), ttp_event_data),
+                        daemon=True,
+                    ).start()
 
                     # Response plane enforcement BEFORE any WebSocket emission
                     response_engine.unblock_expired()
@@ -971,6 +1181,18 @@ def ingest_events():
 
             if event_repo.create_event(event, analysis):
                 processed += 1
+
+                ttp_event_data = {
+                    **event,
+                    'threat_score': analysis.get('threat_score', 0),
+                    'graph_threat': bool(analysis.get('graph_threat', False)),
+                }
+                threading.Thread(
+                    target=_tag_event_ttps,
+                    args=(str(event_id), ttp_event_data),
+                    daemon=True,
+                ).start()
+
                 # Correlate and escalate (emit alerts and apply policy)
                 correlation_result = corr_engine.process_event(event)
                 if correlation_result.get('alert_data'):
@@ -1066,6 +1288,16 @@ def status():
     }), 200
 
 
+@app.route('/api/sessions/graph', methods=['GET'])
+def sessions_graph_snapshot():
+    """Return read-only snapshot of the in-memory session correlation graph."""
+    try:
+        return jsonify(session_graph.snapshot()), 200
+    except Exception as e:
+        logger.error(f"Session graph snapshot failed: {e}")
+        return jsonify([]), 200
+
+
 @app.route('/api/behavioral/score', methods=['POST'])
 def behavioral_score():
     """Score ingress telemetry features with fail-open behavior for proxy safety."""
@@ -1080,19 +1312,251 @@ def behavioral_score():
             # Support flat feature-vector payload directly in request body.
             features = payload
 
+        # Feed shared session graph from ingress behavioral payload when present.
+        _update_session_graph(features)
+        graph_threat = _get_graph_threat_for_request(features)
+
         result = behavioral_scorer.score(features)
+        result['graph_threat'] = bool(graph_threat)
+
+        source_ip, _, _ = _extract_session_graph_fields(features)
+        decision = response_escalator.evaluate(source_ip or '0.0.0.0', result)
+        result['escalation_tier'] = int(decision.get('tier', 0))
+
+        if int(decision.get('tier', 0)) == 3 and source_ip:
+            try:
+                try:
+                    # Requested integration contract
+                    enforcement_service.block_ip(source_ip)
+                except TypeError:
+                    # Backward-compatible call path for current EnforcementService signature
+                    enforcement_service.block_ip(
+                        ip_address=source_ip,
+                        reason='behavioral_escalation_tier_3',
+                        correlation_id='behavioral_escalator',
+                        is_permanent=False,
+                        metadata={
+                            'engine': 'response_escalator',
+                            'intent': result.get('intent'),
+                            'graph_threat': result.get('graph_threat'),
+                            'escalation_tier': 3,
+                        },
+                        threat_level='high'
+                    )
+            except Exception as e:
+                logger.warning(f"Tier-3 block enforcement failed for {source_ip}: {e}")
+
+        if int(decision.get('tier', 0)) >= 1 and source_ip:
+            emit_escalation_to_websocket({
+                'ip': source_ip,
+                'tier': int(decision.get('tier', 0)),
+                'reason': str(decision.get('reason', 'escalation condition met')),
+                'intent': result.get('intent'),
+                'graph_threat': bool(result.get('graph_threat', False)),
+            })
 
         # Enforce stable output schema regardless of scorer internals.
         response = {
             'intent': str(result.get('intent', 'Benign')),
             'anomaly_score': float(result.get('anomaly_score', 0.0)),
             'deception_trigger': bool(result.get('deception_trigger', False)),
+            'graph_threat': bool(result.get('graph_threat', False)),
+            'escalation_tier': int(result.get('escalation_tier', 0)),
         }
         return jsonify(response), 200
 
     except Exception as e:
         logger.error(f"Behavioral scoring failed (fail-open): {e}")
         return jsonify(_BEHAVIORAL_FAIL_OPEN), 200
+
+
+@app.route('/api/behavioral/history', methods=['GET'])
+def behavioral_history():
+    """Return recent behavioral baseline history for a source IP."""
+    conn = None
+    try:
+        ip = request.args.get('ip', '')
+        hours = int(request.args.get('hours', 24))
+        limit = int(request.args.get('limit', 100))
+
+        conn = event_repo.get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(
+            '''
+            SELECT
+                intent,
+                anomaly_score,
+                graph_threat,
+                recorded_at,
+                feature_vector
+            FROM behavioral_baselines
+            WHERE source_ip::text = %s
+              AND recorded_at >= NOW() - (%s * INTERVAL '1 hour')
+            ORDER BY recorded_at DESC
+            LIMIT %s
+            ''',
+            (ip, hours, limit)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+
+        return jsonify(rows), 200
+    except Exception as e:
+        logger.error(f"Behavioral history query failed: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            event_repo.return_connection(conn)
+
+
+@app.route('/api/behavioral/sessions', methods=['GET'])
+def behavioral_sessions():
+    """Return current SessionGraph snapshot for behavioral correlation visibility."""
+    try:
+        return jsonify(session_graph.snapshot()), 200
+    except Exception as e:
+        logger.error(f"Behavioral sessions snapshot failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/behavioral/drift', methods=['GET'])
+def behavioral_drift_state():
+    """Return current drift detector state used by retraining workflow."""
+    try:
+        payload = {
+            'needs_retrain': bool(drift_detector.needs_retraining()),
+            'retrain_needed': bool(drift_detector.retrain_needed),
+            'window_size': len(drift_detector.scores_window),
+            'baseline_mean': float(drift_detector.baseline_mean),
+            'baseline_std': float(drift_detector.baseline_std),
+        }
+
+        if hasattr(drift_detector, 'last_drift_at'):
+            payload['last_drift_at'] = getattr(drift_detector, 'last_drift_at')
+
+        return jsonify(payload), 200
+    except Exception as e:
+        logger.error(f"Behavioral drift state query failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/honeypot/capture', methods=['POST'])
+def store_honeypot_capture():
+    """Store honeypot interaction from victim-web."""
+    conn = None
+    cursor = None
+    try:
+        data = request.get_json(force=True) or {}
+        conn = event_repo.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            '''
+            INSERT INTO honeypot_captures (session_id, source_ip, attack_type, request_payload, llm_response, persona_type)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ''',
+            (
+                data.get('session_id', ''),
+                data.get('source_ip', '0.0.0.0'),
+                data.get('attack_type', 'unknown'),
+                data.get('request_payload', ''),
+                data.get('llm_response', ''),
+                data.get('persona_type', ''),
+            )
+        )
+        conn.commit()
+        return jsonify({'status': 'captured'}), 201
+    except Exception as e:
+        logger.error(f"Honeypot capture storage failed: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+        except Exception:
+            pass
+        if conn:
+            event_repo.return_connection(conn)
+
+
+# Schema detection: detect once at startup which baseline table schema is available.
+_BASELINE_SCHEMA: Optional[str] = None  # 'preferred' or 'legacy'
+
+
+def _detect_baseline_schema() -> str:
+    """Probe the behavioral_baselines table once to decide schema variant."""
+    global _BASELINE_SCHEMA
+    if _BASELINE_SCHEMA is not None:
+        return _BASELINE_SCHEMA
+
+    conn = None
+    try:
+        conn = event_repo.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'behavioral_baselines' AND column_name = 'confirmed_by'"
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        _BASELINE_SCHEMA = 'preferred' if row else 'legacy'
+    except Exception:
+        _BASELINE_SCHEMA = 'legacy'
+    finally:
+        if conn is not None:
+            event_repo.return_connection(conn)
+    return _BASELINE_SCHEMA
+
+
+@app.route('/api/behavioral/feedback', methods=['POST'])
+def behavioral_feedback():
+    """Store confirmed behavioral feedback samples for baseline/model improvement."""
+    conn = None
+    try:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            payload = {}
+
+        feature_vector = payload.get('feature_vector', [])
+        intent = str(payload.get('intent', 'Benign'))
+        confirmed_by = str(payload.get('confirmed_by', 'unknown'))
+        now = datetime.utcnow()
+
+        conn = event_repo.get_connection()
+        cursor = conn.cursor()
+
+        feature_vector_json = json.dumps(feature_vector)
+        schema = _detect_baseline_schema()
+
+        if schema == 'preferred':
+            cursor.execute(
+                '''
+                INSERT INTO behavioral_baselines (feature_vector, intent, confirmed_by, timestamp)
+                VALUES (%s::jsonb, %s, %s, %s)
+                ''',
+                (feature_vector_json, intent, confirmed_by, now)
+            )
+        else:
+            cursor.execute(
+                '''
+                INSERT INTO behavioral_baselines (feature_vector, intent, attack_type, recorded_at, source_ip)
+                VALUES (%s::jsonb, %s, %s, %s, %s)
+                ''',
+                (feature_vector_json, intent, confirmed_by, now, '0.0.0.0')
+            )
+
+        conn.commit()
+        cursor.close()
+
+        return jsonify({'status': 'ok'}), 200
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Behavioral feedback insert failed: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            event_repo.return_connection(conn)
 
 
 @app.route('/api/policy', methods=['GET', 'POST'])

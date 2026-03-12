@@ -28,3 +28,29 @@ def check_rate_limit(ip: str) -> bool:
 
     q.append(now)  # record this request
     return len(q) > RATE_LIMIT_PER_IP
+
+
+async def check_rate_limit_async(ip: str) -> bool:
+    """Redis-backed rate limiter with in-memory fallback."""
+    try:
+        from redis_client import get_pool
+
+        pool = await get_pool()
+        if pool is not None:
+            import time as _time
+
+            now = _time.time()
+            key = f"ratelimit:{ip}"
+
+            pipe = pool.pipeline()
+            pipe.zremrangebyscore(key, 0, now - WINDOW_SIZE_SECONDS)
+            pipe.zadd(key, {str(now): now})
+            pipe.zcard(key)
+            pipe.expire(key, int(WINDOW_SIZE_SECONDS) + 5)
+            results = await pipe.execute()
+            count = int(results[2])
+            return count > RATE_LIMIT_PER_IP
+    except Exception:
+        pass
+
+    return check_rate_limit(ip)

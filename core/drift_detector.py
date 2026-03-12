@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections import deque
 from statistics import mean, stdev
 
@@ -26,6 +27,7 @@ class DriftDetector:
         self.baseline_mean: float = 0.0
         self.baseline_std: float = 0.0
         self.retrain_needed: bool = False
+        self.last_drift_at: float | None = None
 
     def _initialize_baseline_if_ready(self) -> None:
         """Initialize baseline once enough samples are available."""
@@ -65,6 +67,7 @@ class DriftDetector:
 
         if delta > threshold:
             self.retrain_needed = True
+            self.last_drift_at = time.monotonic()
             logger.warning(
                 "Concept drift detected delta=%.6f threshold=%.6f recent_mean=%.6f baseline_mean=%.6f baseline_std=%.6f",
                 delta,

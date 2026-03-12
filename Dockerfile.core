@@ -20,6 +20,7 @@ COPY repository.py .
 COPY correlation_engine.py .
 COPY correlation_escalation.py .
 COPY policy_engine.py .
+COPY response_mode.py .
 COPY response_plane.py .
 COPY core/ ./core/
 COPY migrations/ ./migrations/

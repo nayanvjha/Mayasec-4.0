@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "trained_at": "2026-03-09T20:13:57.921279+00:00",
+  "trained_at": "2026-03-12T20:06:31.840965+00:00",
   "feature_columns": [
     "uri_length",
     "body_length",
@@ -43,8 +43,8 @@
     "pass_fp_rate": false
   },
   "model_files": {
-    "isolation_forest": "/Volumes/Crucial/Dev/Mayasec-4.0-main/ml-service/models/isolation_forest.pkl",
-    "xgboost_classifier": "/Volumes/Crucial/Dev/Mayasec-4.0-main/ml-service/models/xgboost_classifier.pkl",
-    "feature_scaler": "/Volumes/Crucial/Dev/Mayasec-4.0-main/ml-service/models/feature_scaler.pkl"
+    "isolation_forest": "/app/models/isolation_forest.pkl",
+    "xgboost_classifier": "/app/models/xgboost_classifier.pkl",
+    "feature_scaler": "/app/models/feature_scaler.pkl"
   }
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import json
 import re
 import statistics
 import time
@@ -117,6 +118,83 @@ def _session_behavior_features(
     }
 
 
+async def _session_behavior_features_redis(
+    source_ip: str,
+    now: float,
+    uri: str,
+    body_length: int,
+    method: str,
+    ua: str,
+    num_params: int,
+) -> dict | None:
+    """Try Redis-backed session features. Returns None if Redis unavailable."""
+    try:
+        from redis_client import get_pool
+
+        pool = await get_pool()
+        if pool is None:
+            return None
+
+        key = f"session:{source_ip}"
+        raw_entries = await pool.lrange(key, 0, -1)
+
+        entries: list[dict[str, object]] = []
+        for raw in raw_entries:
+            try:
+                entry = json.loads(raw)
+                if now - float(entry["ts"]) <= _WINDOW_SECONDS:
+                    entries.append(entry)
+            except Exception:
+                continue
+
+        previous_ts = float(entries[-1]["ts"]) if entries else now
+        inter_request_interval_ms = (now - previous_ts) * 1000.0 if entries else 0.0
+
+        current_path = uri.split("?", 1)[0]
+        uri_paths = {str(e["uri"]).split("?", 1)[0] for e in entries}
+        uri_paths.add(current_path)
+
+        body_lengths = [int(e["body_length"]) for e in entries]
+        body_lengths.append(body_length)
+
+        methods = {str(e["http_verb"]) for e in entries}
+        methods.add(method)
+
+        ua_values = {str(e["user_agent"]) for e in entries}
+        ua_values.add(ua)
+
+        param_counts = [int(e["num_params"]) for e in entries]
+        param_counts.append(num_params)
+
+        new_entry = json.dumps(
+            {
+                "ts": now,
+                "uri": uri,
+                "body_length": body_length,
+                "http_verb": method,
+                "user_agent": ua,
+                "num_params": num_params,
+            }
+        )
+
+        pipe = pool.pipeline()
+        pipe.rpush(key, new_entry)
+        pipe.ltrim(key, -200, -1)
+        pipe.expire(key, int(_WINDOW_SECONDS) + 10)
+        await pipe.execute()
+
+        return {
+            "inter_request_interval_ms": inter_request_interval_ms,
+            "uri_path_diversity": len(uri_paths),
+            "body_size_variance": _safe_variance(body_lengths),
+            "http_method_diversity": len(methods),
+            "ua_change_detected": len(ua_values) > 1,
+            "param_count_variance": _safe_variance(param_counts),
+        }
+    except Exception:
+        return None
+
+
 async def extract_features(request) -> dict:
     """Convert an aiohttp request into a lightweight ML feature vector."""
     source_ip = getattr(request, "remote", None) or "0.0.0.0"
@@ -162,16 +240,29 @@ async def extract_features(request) -> dict:
         "hour_of_day": datetime.now().hour,
     }
 
-    features.update(
-        _session_behavior_features(
-            source_ip=source_ip,
-            now=now,
-            uri=uri,
-            body_length=len(body_bytes),
-            method=method,
-            ua=ua,
-            num_params=num_params,
-        )
+    # Try Redis-backed session features first, then fall back to in-memory.
+    redis_features = await _session_behavior_features_redis(
+        source_ip=source_ip,
+        now=now,
+        uri=uri,
+        body_length=len(body_bytes),
+        method=method,
+        ua=ua,
+        num_params=num_params,
     )
+    if redis_features is not None:
+        features.update(redis_features)
+    else:
+        features.update(
+            _session_behavior_features(
+                source_ip=source_ip,
+                now=now,
+                uri=uri,
+                body_length=len(body_bytes),
+                method=method,
+                ua=ua,
+                num_params=num_params,
+            )
+        )
 
     return features
