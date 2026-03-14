@@ -42,11 +42,15 @@ class FirewallService:
 
         if self.backend == 'iptables':
             if not shutil.which('iptables'):
-                raise RuntimeError("iptables not available in container")
+                logger.warning("iptables requested but not available — firewall disabled")
+                self._resolved_backend = None
+                return
             self._resolved_backend = 'iptables'
         elif self.backend == 'nftables':
             if not shutil.which('nft'):
-                raise RuntimeError("nft not available in container")
+                logger.warning("nft requested but not available — firewall disabled")
+                self._resolved_backend = None
+                return
             self._resolved_backend = 'nftables'
         else:
             if shutil.which('nft'):
@@ -54,7 +58,9 @@ class FirewallService:
             elif shutil.which('iptables'):
                 self._resolved_backend = 'iptables'
             else:
-                raise RuntimeError("No firewall backend available (nft/iptables missing)")
+                logger.warning("No firewall backend available (nft/iptables missing) — firewall disabled")
+                self._resolved_backend = None
+                return
 
         logger.info(f"Firewall backend: {self._resolved_backend}")
         if self._resolved_backend == 'iptables':
@@ -121,6 +127,9 @@ class FirewallService:
 
     def block_ip(self, ip_address: str) -> None:
         self._validate_ip(ip_address)
+        if self._resolved_backend is None:
+            logger.warning(f"Firewall disabled — skipping block for {ip_address}")
+            return
 
         if self._resolved_backend == 'nftables':
             out = self._run_required(['nft', 'list', 'set', 'inet', 'mayasec', 'blocked_ips'])
@@ -137,6 +146,8 @@ class FirewallService:
 
     def unblock_ip(self, ip_address: str) -> None:
         self._validate_ip(ip_address)
+        if self._resolved_backend is None:
+            return
 
         if self._resolved_backend == 'nftables':
             out = self._run_required(['nft', 'list', 'set', 'inet', 'mayasec', 'blocked_ips'])
@@ -155,6 +166,8 @@ class FirewallService:
 
     def is_blocked(self, ip_address: str) -> bool:
         self._validate_ip(ip_address)
+        if self._resolved_backend is None:
+            return False
 
         if self._resolved_backend == 'nftables':
             out = self._run_required(['nft', 'list', 'set', 'inet', 'mayasec', 'blocked_ips'])

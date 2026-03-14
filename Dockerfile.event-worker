@@ -1,0 +1,9 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir redis psycopg2-binary
+
+COPY event_worker.py /app/event_worker.py
+
+CMD ["python", "/app/event_worker.py"]

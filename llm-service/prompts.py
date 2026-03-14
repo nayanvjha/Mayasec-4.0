@@ -85,6 +85,23 @@ Request URI: {{ uri }}
 Request Body: {{ body }}
 HTTP Method: {{ http_verb }}
 
+ATTACKER SESSION CONTEXT (use this to maintain continuity):
+- Interaction number: {{ interaction_count }}
+- Previous attack types: {{ previous_attack_types }}
+- Attacker skill level: {{ skill_level }}
+- Current environment: {{ environment_description }}
+- Attacker's likely goal: {{ likely_goal }}
+- Current attack phase: {{ attack_phase }}
+- Detected tools: {{ detected_tools }}
+
+CONTINUITY RULES:
+- This is interaction #{{ interaction_count }} from this attacker.
+- Maintain consistency with what you showed them before.
+- If they "logged in" previously, keep them logged in.
+- Gradually reveal more "valuable" fake data to keep them engaged.
+- Each response should lead them deeper into the fake environment.
+- After 5+ interactions, start showing fake internal tools and APIs.
+
 Attack-specific aesthetic guidelines:
 {% if attack_type == "sqli" %}
 - Return a beautiful developer debug page (similar to Django/Laravel) or a stunning error dashboard with fake PostgreSQL stack traces leaking `users(id, username, password_hash, email, role, api_key)`.

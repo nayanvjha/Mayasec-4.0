@@ -1,0 +1,32 @@
+.traffic-sparkline {
+  min-height: 330px;
+}
+
+.traffic-sparkline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+}
+
+.traffic-sparkline-subtitle {
+  margin-top: 0.15rem;
+  text-align: center;
+  color: #8b949e;
+  font-size: 0.82rem;
+  letter-spacing: 0.2px;
+}
+
+.traffic-sparkline .recharts-cartesian-grid-horizontal line,
+.traffic-sparkline .recharts-cartesian-grid-vertical line {
+  stroke: rgba(148, 163, 184, 0.12);
+}
+
+.traffic-sparkline .recharts-layer.recharts-cartesian-axis text {
+  fill: #9fb3c8;
+  font-weight: 500;
+}
+
+.traffic-sparkline .recharts-tooltip-wrapper {
+  outline: none;
+}

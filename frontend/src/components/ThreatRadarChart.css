@@ -1,0 +1,82 @@
+.threat-radar-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.radar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.radar-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #58a6ff;
+  margin: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.radar-subtitle {
+  font-size: 0.85rem;
+  color: #8b949e;
+  margin-bottom: 1rem;
+  font-style: italic;
+  text-align: center;
+  width: 100%;
+}
+
+.radar-loading-indicator {
+  font-size: 0.75rem;
+  color: #8b949e;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+.error-text {
+  color: #f85149;
+}
+
+.radar-chart-container {
+  flex: 1;
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Add subtle glow behind the radar */
+  background: radial-gradient(circle at center, rgba(0, 255, 159, 0.03) 0%, transparent 60%);
+}
+
+.radar-tooltip {
+  background: rgba(13, 17, 23, 0.95);
+  border: 1px solid rgba(0, 255, 159, 0.4);
+  padding: 10px 14px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.radar-tooltip-label {
+  color: #e6edf3;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.radar-tooltip-value {
+  color: #00ff9f;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin: 0;
+}

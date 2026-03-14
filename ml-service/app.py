@@ -197,6 +197,7 @@ class FeatureVector(BaseModel):
     source_ip: str = "0.0.0.0"
     http_verb: str = "GET"
     uri: str = "/"
+    body: str = Field(default="")
     uri_length: int = 0
     body_length: int = 0
     num_params: int = 0
@@ -269,6 +270,74 @@ def score(fv: FeatureVector):
                 "score":              fast_score,
                 "is_malicious":       True,
                 "attack_type":        attack_type,
+                "isolation_anomaly":  1.0,
+                "xgboost_confidence": 1.0,
+                "latency_ms":         round(latency_ms, 2),
+            })
+
+        # ------------------------------------------------------------------ #
+        # Rule-based pre-ML detections (ordered)
+        # SQL/XSS already handled above.
+        # Order: Path Traversal → Command Injection → Brute Force
+        #        → Scanner Probe → DDoS → ML fallback.
+        # ------------------------------------------------------------------ #
+        uri_l = (fv.uri or "").lower()
+        body_l = (fv.body or "").lower()
+        combined = f"{uri_l} {body_l}"
+
+        path_traversal_patterns = ("../", "..\\", "%2e%2e", "/etc/passwd", "/etc/shadow")
+        if any(p in combined for p in path_traversal_patterns):
+            latency_ms = (time.monotonic() - t0) * 1000.0
+            return JSONResponse(content={
+                "score":              90,
+                "is_malicious":       True,
+                "attack_type":        "path_traversal",
+                "isolation_anomaly":  1.0,
+                "xgboost_confidence": 1.0,
+                "latency_ms":         round(latency_ms, 2),
+            })
+
+        cmdi_patterns = ("|", ";", "&&", "||", "/bin/sh", "cmd.exe", "powershell")
+        if any(p in combined for p in cmdi_patterns):
+            latency_ms = (time.monotonic() - t0) * 1000.0
+            return JSONResponse(content={
+                "score":              92,
+                "is_malicious":       True,
+                "attack_type":        "cmdi",
+                "isolation_anomaly":  1.0,
+                "xgboost_confidence": 1.0,
+                "latency_ms":         round(latency_ms, 2),
+            })
+
+        login_prefixes = ("/login", "/signin", "/auth", "/wp-login", "/admin/login")
+        if any(uri_l.startswith(p) for p in login_prefixes) and fv.request_rate_60s > 10:
+            latency_ms = (time.monotonic() - t0) * 1000.0
+            return JSONResponse(content={
+                "score":              85,
+                "is_malicious":       True,
+                "attack_type":        "brute_force",
+                "isolation_anomaly":  1.0,
+                "xgboost_confidence": 1.0,
+                "latency_ms":         round(latency_ms, 2),
+            })
+
+        if fv.user_agent_known_tool and fv.request_rate_60s > 5:
+            latency_ms = (time.monotonic() - t0) * 1000.0
+            return JSONResponse(content={
+                "score":              82,
+                "is_malicious":       True,
+                "attack_type":        "probe",
+                "isolation_anomaly":  1.0,
+                "xgboost_confidence": 1.0,
+                "latency_ms":         round(latency_ms, 2),
+            })
+
+        if fv.request_rate_60s > 100:
+            latency_ms = (time.monotonic() - t0) * 1000.0
+            return JSONResponse(content={
+                "score":              88,
+                "is_malicious":       True,
+                "attack_type":        "ddos",
                 "isolation_anomaly":  1.0,
                 "xgboost_confidence": 1.0,
                 "latency_ms":         round(latency_ms, 2),

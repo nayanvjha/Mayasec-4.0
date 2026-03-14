@@ -1,0 +1,65 @@
+.threat-map-panel {
+  min-height: 390px;
+}
+
+.threat-map-canvas {
+  width: 100%;
+  min-height: 300px;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0a0e1a;
+}
+
+.threat-map-canvas svg {
+  width: 100%;
+  height: 300px;
+  background: #0a0e1a;
+}
+
+.threat-map-subtitle {
+  margin-top: 0.6rem;
+  text-align: center;
+  color: #8b949e;
+  font-size: 0.82rem;
+  letter-spacing: 0.2px;
+}
+
+.threat-map-fallback {
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(13, 17, 23, 0.65);
+  overflow: hidden;
+}
+
+.threat-map-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.threat-map-table thead {
+  background: rgba(88, 166, 255, 0.12);
+}
+
+.threat-map-table th,
+.threat-map-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid rgba(88, 166, 255, 0.15);
+  text-align: left;
+}
+
+.threat-map-table th {
+  color: #93c5fd;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.threat-map-table td {
+  color: #cbd5e1;
+}
+
+.threat-map-table tbody tr:last-child td {
+  border-bottom: none;
+}

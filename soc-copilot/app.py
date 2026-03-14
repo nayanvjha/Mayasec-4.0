@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 import prompts
 import tools
+from graph_chain import get_neo4j_graph, get_llm, get_cypher_chain, run_cypher_query
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("soc_copilot")
@@ -22,10 +23,25 @@ logger = logging.getLogger("soc_copilot")
 LLM_URL = os.getenv("LLM_SERVICE_URL", "http://llm-service:8002")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT_SECONDS", "15"))
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
 
 # In-memory conversation history (per-session, cleared on restart)
 _conversations: dict[str, list[dict]] = {}
+
+_neo4j_graph = None
+_llm = None
+_cypher_chain = None
+
+
+def init_graph_chain():
+    global _neo4j_graph, _llm, _cypher_chain
+    _neo4j_graph = get_neo4j_graph()
+    _llm = get_llm()
+    _cypher_chain = get_cypher_chain(_neo4j_graph, _llm)
+    if _cypher_chain:
+        logging.info("LangChain GraphCypherQAChain initialized successfully")
+    else:
+        logging.warning("GraphCypherQAChain unavailable — falling back to SQL tools")
 
 app = FastAPI(title="MAYASEC SOC Copilot", version="4.0.0")
 _http_client: Optional[httpx.AsyncClient] = None
@@ -34,7 +50,11 @@ _http_client: Optional[httpx.AsyncClient] = None
 @app.on_event("startup")
 async def startup():
     global _http_client
+    import asyncio
     _http_client = httpx.AsyncClient(timeout=httpx.Timeout(LLM_TIMEOUT))
+    # Run graph chain init in background so health endpoint responds immediately
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, init_graph_chain)
 
 
 @app.on_event("shutdown")
@@ -78,6 +98,39 @@ def _parse_action(text: str) -> dict:
     return {"tool": "none", "answer": cleaned}
 
 
+def _format_tool_results(tool_name: str, results: Any) -> str:
+    """Format tool results into a human-readable answer when LLM is unavailable."""
+    if isinstance(results, dict) and "error" in results:
+        return f"Error running {tool_name}: {results['error']}"
+
+    if tool_name == "get_stats_summary" and isinstance(results, dict):
+        parts = []
+        if "avg_threat_score" in results:
+            parts.append(f"Average threat score: {results['avg_threat_score']}")
+        dist = results.get("threat_distribution", {})
+        if dist:
+            parts.append(f"Threat distribution: {', '.join(f'{k}: {v}' for k, v in dist.items())}")
+        total = results.get("total_events")
+        if total:
+            parts.append(f"Total events: {total}")
+        return "\n".join(parts) if parts else json.dumps(results, default=str)
+
+    if isinstance(results, list):
+        if not results:
+            return f"No results found for {tool_name}."
+        lines = [f"Found {len(results)} result(s):"]
+        for item in results[:5]:
+            if isinstance(item, dict):
+                summary = ", ".join(f"{k}: {v}" for k, v in list(item.items())[:4])
+                lines.append(f"  - {summary}")
+            else:
+                lines.append(f"  - {item}")
+        if len(results) > 5:
+            lines.append(f"  ... and {len(results) - 5} more")
+        return "\n".join(lines)
+
+    return json.dumps(results, indent=2, default=str)[:1000]
+
 def _execute_tool(tool_name: str, params: dict) -> Any:
     """Execute a copilot tool and return results."""
     tool_info = tools.AVAILABLE_TOOLS.get(tool_name)
@@ -101,12 +154,46 @@ class QueryResponse(BaseModel):
     answer: str
     tool_used: str = ""
     tool_results: Any = None
+    source: str = ""
+    cypher_used: Optional[str] = None
+    raw_results: Any = None
     latency_ms: float = 0.0
 
 
 @app.post("/query", response_model=QueryResponse)
 async def handle_query(req: QueryRequest):
     t0 = time.monotonic()
+    question = req.query
+
+    GRAPH_KEYWORDS = [
+        "who attacked", "attack path", "lateral movement", "attacker ip",
+        "show graph", "graph", "node", "connected", "relationship",
+        "came from", "moved to", "credential", "brute force path",
+        "which ips", "apt", "attribution", "cypher"
+    ]
+
+    question_lower = question.lower()
+    is_graph_query = any(kw in question_lower for kw in GRAPH_KEYWORDS)
+
+    if is_graph_query and _cypher_chain is not None:
+        result = run_cypher_query(_cypher_chain, question)
+        answer = result["answer"]
+        history = _conversations.setdefault(req.session_id, [])
+        history.append({"role": "user", "content": req.query})
+        history.append({"role": "assistant", "content": answer})
+        if len(history) > 20:
+            _conversations[req.session_id] = history[-20:]
+
+        latency = round((time.monotonic() - t0) * 1000, 1)
+        return QueryResponse(
+            answer=answer,
+            tool_used="",
+            tool_results=None,
+            source="graph",
+            cypher_used=result["cypher_used"],
+            raw_results=result["raw_results"],
+            latency_ms=latency,
+        )
 
     history = _conversations.setdefault(req.session_id, [])
     history.append({"role": "user", "content": req.query})
@@ -126,8 +213,28 @@ async def handle_query(req: QueryRequest):
     tool_name = str(action.get("tool", "none"))
     tool_results = None
 
+    # If LLM returned nothing, try direct tool matching based on keywords
+    if not action_text.strip():
+        q = question.lower()
+        if any(k in q for k in ["threat", "metric", "score", "stats", "status", "overview", "level"]):
+            tool_name = "get_stats_summary"
+        elif any(k in q for k in ["event", "recent", "latest", "log", "show"]):
+            tool_name = "query_events"
+        elif any(k in q for k in ["ip", "flagged", "blocked", "why"]):
+            tool_name = "query_events"
+        elif any(k in q for k in ["alert", "critical", "high"]):
+            tool_name = "query_events"
+        elif any(k in q for k in ["drift", "model", "ml", "retrain"]):
+            tool_name = "get_drift_status"
+        elif any(k in q for k in ["session", "active", "list"]):
+            tool_name = "query_active_sessions"
+        elif any(k in q for k in ["explain", "what happened"]):
+            tool_name = "explain_event"
+        elif any(k in q for k in ["behavior", "anomaly", "intent"]):
+            tool_name = "query_behavioral_history"
+
     if tool_name != "none" and tool_name in tools.AVAILABLE_TOOLS:
-        params = action.get("params", {})
+        params = action.get("params", {}) if action_text.strip() else {}
         if not isinstance(params, dict):
             params = {}
 
@@ -140,9 +247,12 @@ async def handle_query(req: QueryRequest):
         )
         answer = await _llm_generate(system, synthesis_prompt)
         if not answer:
-            answer = f"Tool results: {json.dumps(tool_results, default=str)[:1000]}"
+            # Format tool results directly without LLM
+            answer = _format_tool_results(tool_name, tool_results)
     else:
         answer = str(action.get("answer", action_text))
+        if not answer.strip():
+            answer = "I could not process that query. Try asking about threat metrics, recent events, or a specific IP address."
 
     history.append({"role": "assistant", "content": answer})
 

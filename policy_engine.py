@@ -20,6 +20,7 @@ class ResponseMode(str, Enum):
     MONITOR = 'monitor'
     GUARDED = 'guarded'
     ACTIVE = 'active'
+    DECEPTION = 'deception'
 
 
 @dataclass
@@ -187,6 +188,14 @@ class PolicyEngine:
             return PolicyDecision(
                 action='recommend',
                 reason='guarded:threshold_not_met',
+                mode=self.mode.value,
+                safeguards=safeguards
+            )
+
+        if self.mode == ResponseMode.DECEPTION:
+            return PolicyDecision(
+                action='enforce',
+                reason=f"deception:{candidate_reason}",
                 mode=self.mode.value,
                 safeguards=safeguards
             )

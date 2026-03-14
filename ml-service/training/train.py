@@ -9,6 +9,9 @@ Outputs saved to ml-service/models/:
     isolation_forest.pkl
     xgboost_classifier.pkl
     feature_scaler.pkl
+    iso_model.pkl
+    xgb_model.pkl
+    scaler.pkl
     model_metadata.json
 """
 
@@ -203,6 +206,108 @@ def load_cicids(sampled: bool = True) -> pd.DataFrame:
     return result
 
 
+def load_csic_2010() -> pd.DataFrame:
+    """Load CSIC 2010 raw HTTP requests and extract core request features.
+
+    Extracted features (explicit per requirement):
+      - uri_length
+      - body_length
+      - num_params
+      - has_sql_keywords
+      - has_xss_patterns
+
+    Labels:
+      - normal traffic files -> normal (0)
+      - anomalous traffic file -> attack class inferred by payload patterns
+    """
+    csic_dir = DATASETS_DIR / "csic_2010"
+    if not csic_dir.exists():
+        logger.warning("CSIC 2010 directory not found — skipping")
+        return pd.DataFrame()
+
+    normal_files = [
+        csic_dir / "cisc_normalTraffic_train.txt",
+        csic_dir / "cisc_normalTraffic_test.txt",
+    ]
+    attack_files = [
+        csic_dir / "cisc_anomalousTraffic_test.txt",
+    ]
+
+    def _iter_requests(path: Path):
+        if not path.exists():
+            return
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            chunk = []
+            for line in f:
+                s = line.rstrip("\n")
+                if s.strip() == "":
+                    if chunk:
+                        yield "\n".join(chunk)
+                        chunk = []
+                    continue
+                chunk.append(s)
+            if chunk:
+                yield "\n".join(chunk)
+
+    def _extract_features(raw_http: str) -> dict:
+        lines = raw_http.splitlines()
+        request_line = lines[0] if lines else "GET / HTTP/1.1"
+        parts = request_line.split(" ")
+        uri = parts[1] if len(parts) >= 2 else "/"
+        body = ""
+        if "\n\n" in raw_http:
+            body = raw_http.split("\n\n", 1)[1]
+        elif "\r\n\r\n" in raw_http:
+            body = raw_http.split("\r\n\r\n", 1)[1]
+
+        detect = f"{uri} {body}".lower()
+        has_sql = int(any(k in detect for k in ["union", "select", "drop", "insert", "1=1", "or 1="]))
+        has_xss = int(any(k in detect for k in ["<script", "javascript:", "onerror=", "onload="]))
+
+        return {
+            "uri_length": len(uri),
+            "body_length": len(body),
+            "num_params": uri.count("=") + uri.count("&") + body.count("=") + body.count("&"),
+            "has_sql_keywords": has_sql,
+            "has_xss_patterns": has_xss,
+            "user_agent_entropy": 3.0,
+            "user_agent_known_tool": 0,
+            "request_rate_60s": 6,
+            "hour_of_day": 12,
+            "byte_ratio": 1.0,
+            "packet_rate": 1.0,
+            "connection_count": 1,
+        }
+
+    records = []
+
+    for p in normal_files:
+        for req in _iter_requests(p) or []:
+            row = _extract_features(req)
+            row["label"] = 0
+            records.append(row)
+
+    for p in attack_files:
+        for req in _iter_requests(p) or []:
+            row = _extract_features(req)
+            low = req.lower()
+            if any(k in low for k in ["../", "..\\", "%2e%2e", "/etc/passwd", "/etc/shadow"]):
+                row["label"] = 4  # path_traversal
+            elif any(k in low for k in ["&&", "||", "/bin/sh", "cmd.exe", "powershell", ";", "|"]):
+                row["label"] = 5  # cmdi
+            elif row["has_xss_patterns"]:
+                row["label"] = 2  # xss
+            elif row["has_sql_keywords"]:
+                row["label"] = 1  # sqli
+            else:
+                row["label"] = 9  # probe generic attack
+            records.append(row)
+
+    out = pd.DataFrame(records)
+    logger.info("CSIC 2010 loaded: %d rows", len(out))
+    return out
+
+
 def load_payload_dataset() -> pd.DataFrame:
     """
     Construct a feature-vector dataset from raw payload text files.
@@ -257,9 +362,12 @@ def load_payload_dataset() -> pd.DataFrame:
             records.append(_make_record(line, label))
         logger.info("Payloads loaded from %s: %d rows (label=%d)", filename, len(lines), label)
 
-    # Generate synthetic normal traffic records
+    attack_count = len(records)
+
+    # Generate matched synthetic benign samples (1:1 with synthetic attacks)
     rng = np.random.default_rng(42)
-    for _ in range(2000):
+    benign_target = max(attack_count, 2000)
+    for _ in range(benign_target):
         records.append({
             "uri_length":            int(rng.integers(4, 50)),
             "body_length":           int(rng.integers(0, 500)),
@@ -387,6 +495,7 @@ def build_dataset() -> Tuple[pd.DataFrame, pd.Series]:
     frames = [
         load_nsl_kdd(),
         load_cicids(sampled=True),
+        load_csic_2010(),
         load_payload_dataset(),
         load_sql_dataset(),
         load_xss_dataset(),
@@ -418,6 +527,41 @@ def build_dataset() -> Tuple[pd.DataFrame, pd.Series]:
         X, y = X[mask], y[mask]
 
     return X, y
+
+
+def balance_attack_normal(X: np.ndarray, y: np.ndarray, seed: int = 42) -> Tuple[np.ndarray, np.ndarray]:
+    """Random oversampling to enforce attack:normal = 50:50.
+
+    Attack is any label > 0. No schema changes; multi-class attack labels are preserved.
+    """
+    rng = np.random.default_rng(seed)
+    y = np.asarray(y)
+    normal_idx = np.where(y == 0)[0]
+    attack_idx = np.where(y > 0)[0]
+
+    if len(normal_idx) == 0 or len(attack_idx) == 0:
+        logger.warning("Cannot enforce 50/50 balance (missing one class group)")
+        return X, y
+
+    if len(normal_idx) == len(attack_idx):
+        logger.info("Dataset already balanced at 50/50")
+        return X, y
+
+    if len(normal_idx) < len(attack_idx):
+        need = len(attack_idx) - len(normal_idx)
+        sampled = rng.choice(normal_idx, size=need, replace=True)
+        sel = np.concatenate([np.arange(len(y)), sampled])
+    else:
+        need = len(normal_idx) - len(attack_idx)
+        sampled = rng.choice(attack_idx, size=need, replace=True)
+        sel = np.concatenate([np.arange(len(y)), sampled])
+
+    Xb, yb = X[sel], y[sel]
+    logger.info(
+        "Balanced attack/normal ratio -> normal=%d attack=%d",
+        int((yb == 0).sum()), int((yb > 0).sum())
+    )
+    return Xb, yb
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +613,7 @@ def train_isolation_forest(X_normal: np.ndarray) -> IsolationForest:
     model = IsolationForest(
         n_estimators=200,
         max_samples="auto",
-        contamination=0.05,   # ~5% contamination assumed
+        contamination=0.1,
         max_features=1.0,
         bootstrap=False,
         random_state=42,
@@ -486,7 +630,7 @@ def train_xgboost(X_train: np.ndarray, y_train: np.ndarray, n_classes: int) -> X
     logger.info("Training XGBoost on %d samples, %d classes...", len(X_train), n_classes)
     t0 = time.monotonic()
     model = XGBClassifier(
-        n_estimators=500,
+        n_estimators=200,
         max_depth=6,
         learning_rate=0.1,
         subsample=0.8,
@@ -606,11 +750,17 @@ def save_models(
     iso_path    = MODELS_DIR / "isolation_forest.pkl"
     xgb_path    = MODELS_DIR / "xgboost_classifier.pkl"
     scaler_path = MODELS_DIR / "feature_scaler.pkl"
+    iso_path_alt    = MODELS_DIR / "iso_model.pkl"
+    xgb_path_alt    = MODELS_DIR / "xgb_model.pkl"
+    scaler_path_alt = MODELS_DIR / "scaler.pkl"
     meta_path   = MODELS_DIR / "model_metadata.json"
 
     with open(iso_path,    "wb") as f: pickle.dump(iso_model, f, protocol=5)
     with open(xgb_path,    "wb") as f: pickle.dump(xgb_model, f, protocol=5)
     with open(scaler_path, "wb") as f: pickle.dump(scaler, f, protocol=5)
+    with open(iso_path_alt,    "wb") as f: pickle.dump(iso_model, f, protocol=5)
+    with open(xgb_path_alt,    "wb") as f: pickle.dump(xgb_model, f, protocol=5)
+    with open(scaler_path_alt, "wb") as f: pickle.dump(scaler, f, protocol=5)
 
     metadata = {
         "version":         "2.0.0",
@@ -671,21 +821,24 @@ def main() -> None:
     # 5. Apply oversampling (numpy-based, no imblearn dependency)
     X_balanced, y_balanced = apply_oversampling(X_train_scaled, y_train)
 
-    # 6. Encode labels for XGBoost
+    # 6. Enforce binary attack/normal balance at 50/50 via random oversampling
+    X_balanced, y_balanced = balance_attack_normal(X_balanced, y_balanced)
+
+    # 7. Encode labels for XGBoost
     le = LabelEncoder()
     y_encoded = le.fit_transform(y_balanced)
     n_classes = len(np.unique(y_encoded))
 
-    # 7. Train XGBoost
+    # 8. Train XGBoost
     xgb_model = train_xgboost(X_balanced, y_encoded, n_classes)
 
-    # 8. Encode test labels for evaluation
+    # 9. Encode test labels for evaluation
     y_test_series = pd.Series(y_test)
 
-    # 9. Evaluate combined pipeline
+    # 10. Evaluate combined pipeline
     metrics = evaluate(iso_model, xgb_model, scaler, X_test, y_test_series)
 
-    # 10. Save all artifacts
+    # 11. Save all artifacts
     save_models(iso_model, xgb_model, scaler, le, metrics)
 
     # Final verdict

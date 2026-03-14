@@ -1,0 +1,18 @@
+.demo-injector-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1500;
+  padding: 0.75rem 0.9rem;
+  border-left: 4px solid #ef5350;
+  border-radius: 8px;
+  background: rgba(10, 14, 26, 0.92);
+  color: #e6edf3;
+  border-top: 1px solid rgba(88, 166, 255, 0.18);
+  border-right: 1px solid rgba(88, 166, 255, 0.18);
+  border-bottom: 1px solid rgba(88, 166, 255, 0.18);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 0.85rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+}

@@ -1,0 +1,95 @@
+.mitre-heatmap {
+  min-height: 420px;
+}
+
+.mitre-heatmap-empty-header {
+  margin: -0.35rem 0 0.8rem;
+  color: #8b949e;
+  font-size: 0.82rem;
+  letter-spacing: 0.2px;
+}
+
+.mitre-heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.mitre-cell {
+  position: relative;
+  min-height: 94px;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.6rem 0.65rem 1.6rem;
+  text-align: left;
+  color: #e6edf3;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.mitre-cell.clickable {
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.mitre-cell.clickable:hover {
+  transform: translateY(-1px);
+  border-color: rgba(88, 166, 255, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.mitre-cell.disabled {
+  cursor: default;
+}
+
+.mitre-id {
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 0.35rem;
+  color: #f8fbff;
+}
+
+.mitre-name {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: #c7d2e0;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mitre-count {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.45rem;
+  min-width: 1.6rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #e6edf3;
+  background: rgba(10, 14, 26, 0.55);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+}
+
+@media (max-width: 1200px) {
+  .mitre-heatmap-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .mitre-heatmap-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .mitre-heatmap-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

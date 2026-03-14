@@ -20,23 +20,24 @@ ENV REACT_APP_API_URL=$REACT_APP_API_URL
 ENV REACT_APP_ADMIN_TOKEN=$REACT_APP_ADMIN_TOKEN
 RUN npm run build
 
-# Runtime Stage
-FROM node:18-alpine
+# Runtime Stage — Nginx with API reverse proxy
+FROM nginx:alpine
 
-WORKDIR /app
+# Remove default Nginx config
+RUN rm /etc/nginx/conf.d/default.conf
 
-# Install serve to run the production build
-RUN npm install -g serve
+# Copy custom Nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built application from builder
-COPY --from=builder /app/build ./build
+# Copy built React app from builder
+COPY --from=builder /app/build /usr/share/nginx/html
 
 # Expose port
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
-  CMD npm list serve > /dev/null 2>&1 || exit 1
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=10s \
+  CMD wget -q --spider http://localhost:3000/health || exit 1
 
-# Run the app
-CMD ["serve", "-s", "build", "-l", "3000"]
+# Run Nginx in foreground
+CMD ["nginx", "-g", "daemon off;"]

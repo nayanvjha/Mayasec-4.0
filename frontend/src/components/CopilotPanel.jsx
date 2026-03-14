@@ -30,10 +30,27 @@ function CopilotPanel({ apiUrl }) {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const sendQuery = useCallback(async () => {
-    if (!input.trim() || loading) return;
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
 
-    const userMsg = { role: 'user', content: input.trim() };
+    if (isOpen) {
+      window.addEventListener('keydown', handleEscKey);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEscKey);
+    };
+  }, [isOpen]);
+
+  const sendQuery = useCallback(async (queryOverride) => {
+    const queryText = typeof queryOverride === 'string' ? queryOverride.trim() : input.trim();
+    if (!queryText || loading) return;
+
+    const userMsg = { role: 'user', content: queryText };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
@@ -74,6 +91,18 @@ function CopilotPanel({ apiUrl }) {
     }
   };
 
+  const suggestedQuestions = [
+    'Why was 10.0.0.1 flagged?',
+    'Show critical events from the last hour',
+    'Is the ML model drifting?',
+    'List active sessions',
+  ];
+
+  const handleSuggestionClick = (question) => {
+    setInput(question);
+    sendQuery(question);
+  };
+
   if (!isOpen) {
     return (
       <button
@@ -82,9 +111,9 @@ function CopilotPanel({ apiUrl }) {
           setIsOpen(true);
           setTimeout(() => inputRef.current?.focus(), 100);
         }}
-        title="Open Copilot (⌘K)"
+        title="Open MAYASEC AI"
       >
-        🤖 Copilot
+        MAYASEC AI
       </button>
     );
   }
@@ -92,7 +121,7 @@ function CopilotPanel({ apiUrl }) {
   return (
     <div className="copilot-panel">
       <div className="copilot-header">
-        <span>🤖 MAYASEC Copilot</span>
+        <span>MAYASEC AI</span>
         <div className="copilot-header-actions">
           <span className="copilot-shortcut">⌘K</span>
           <button onClick={() => setIsOpen(false)} className="copilot-close">✕</button>
@@ -104,10 +133,16 @@ function CopilotPanel({ apiUrl }) {
           <div className="copilot-empty">
             <p>Ask me about your security events:</p>
             <ul>
-              <li>"Why was 10.0.0.1 flagged?"</li>
-              <li>"Show critical events from the last hour"</li>
-              <li>"Is the ML model drifting?"</li>
-              <li>"List active sessions"</li>
+              {suggestedQuestions.map((question) => (
+                <li key={question} onClick={() => handleSuggestionClick(question)} role="button" tabIndex={0} onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSuggestionClick(question);
+                  }
+                }}>
+                  {question}
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -117,13 +152,21 @@ function CopilotPanel({ apiUrl }) {
             <div className="copilot-msg-content">{msg.content}</div>
             {msg.tool_used && (
               <div className="copilot-msg-meta">
-                🔧 {msg.tool_used} · {msg.latency_ms}ms
+                {msg.tool_used} · {msg.latency_ms}ms
               </div>
             )}
           </div>
         ))}
 
-        {loading && <div className="copilot-msg copilot-msg-loading">Thinking...</div>}
+        {loading && (
+          <div className="copilot-msg copilot-msg-loading">
+            <div className="copilot-loading" aria-label="Loading">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

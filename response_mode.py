@@ -5,7 +5,7 @@ Response mode resolution (backend authoritative).
 import os
 from typing import Tuple
 
-ALLOWED_RESPONSE_MODES = {"monitor", "guarded", "active"}
+ALLOWED_RESPONSE_MODES = {"monitor", "guarded", "active", "deception"}
 
 
 def resolve_response_mode() -> Tuple[str, str]:

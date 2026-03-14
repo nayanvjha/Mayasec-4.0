@@ -15,7 +15,7 @@ import './LiveEventFeed.css';
  * 
  * No artificial animations - only real event arrivals trigger updates
  */
-function LiveEventFeed({ events, connected, error }) {
+function LiveEventFeed({ events, connected, error, onEventSelect }) {
   const [highlightedEventId, setHighlightedEventId] = useState(null);
 
   // Highlight new events briefly when they arrive
@@ -32,7 +32,7 @@ function LiveEventFeed({ events, connected, error }) {
 
       return () => clearTimeout(timer);
     }
-  }, [events?.length]);
+  }, [events]);
 
   if (!events || events.length === 0) {
     return (
@@ -54,7 +54,7 @@ function LiveEventFeed({ events, connected, error }) {
             </div>
           ) : (
             <div className="waiting-state">
-              <div className="waiting-icon">📡</div>
+              <div className="waiting-icon"></div>
               <span>Waiting for security events...</span>
             </div>
           )}
@@ -101,13 +101,18 @@ function LiveEventFeed({ events, connected, error }) {
               key={eventId}
               className={`event-item event-${threatLevel} ${isNewEvent ? 'new-event' : ''}`}
               title={`Event ID: ${eventId}`}
+              onClick={() => {
+                if (typeof onEventSelect === 'function') {
+                  onEventSelect(event);
+                }
+              }}
             >
               {/* Severity Indicator */}
               <div className="event-severity">
-                {threatLevel === 'critical' && <span className="severity-badge critical">🔴</span>}
-                {threatLevel === 'high' && <span className="severity-badge high">🟠</span>}
-                {threatLevel === 'medium' && <span className="severity-badge medium">🟡</span>}
-                {threatLevel === 'low' && <span className="severity-badge low">🟢</span>}
+                {threatLevel === 'critical' && <span className="severity-badge critical"></span>}
+                {threatLevel === 'high' && <span className="severity-badge high"></span>}
+                {threatLevel === 'medium' && <span className="severity-badge medium"></span>}
+                {threatLevel === 'low' && <span className="severity-badge low"></span>}
                 {!['critical', 'high', 'medium', 'low'].includes(threatLevel) && <span className="severity-badge unknown">⚪</span>}
               </div>
 

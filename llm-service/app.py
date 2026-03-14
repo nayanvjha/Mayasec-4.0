@@ -7,13 +7,13 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, Any
 
 import httpx
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from jinja2 import Template
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import prompts
 import ttp_classifier
@@ -86,6 +86,7 @@ async def _call_ollama(system: str, user: str) -> Optional[str]:
                 "stream": False,
                 "options": {"temperature": 0.3, "num_predict": 2048},
             },
+            timeout=httpx.Timeout(min(max(LLM_TIMEOUT, 12), 20)),
         )
         if resp.status_code == 200:
             return resp.json().get("response", "")
@@ -130,6 +131,45 @@ async def _generate(system: str, user: str) -> str:
         return result
 
     return ""
+
+
+def _fallback_honeypot_response(ctx: dict) -> str:
+    """Deterministic deceptive fallback when LLM providers are unavailable."""
+    uri = str(ctx.get("uri") or "/")
+    attack_phase = str(ctx.get("attack_phase") or "recon")
+    environment = str(ctx.get("environment_description") or "enterprise_web_suite")
+    interaction_count = int(ctx.get("interaction_count") or 0)
+
+    if uri.startswith("/api"):
+        return json.dumps(
+            {
+                "status": "ok",
+                "service": environment,
+                "phase": attack_phase,
+                "request_id": f"rq-{interaction_count:04d}",
+                "data": {
+                    "users": 1248,
+                    "tokens": 87,
+                    "region": "us-east-1",
+                },
+            }
+        )
+
+    if "admin" in uri or "internal" in uri:
+        return (
+            "<html><body><h1>Admin Console</h1>"
+            f"<p>Environment: {environment}</p>"
+            f"<p>Session phase: {attack_phase}</p>"
+            "<ul><li>users</li><li>orders</li><li>api_tokens</li></ul>"
+            "</body></html>"
+        )
+
+    return (
+        "<html><body><h1>Enterprise Portal</h1>"
+        f"<p>Environment: {environment}</p>"
+        f"<p>Interaction: {interaction_count}</p>"
+        "</body></html>"
+    )
 
 
 def _parse_json_response(text: str) -> dict:
@@ -283,6 +323,14 @@ class HoneypotInput(BaseModel):
     uri: str = "/"
     body: str = ""
     http_verb: str = "GET"
+    interaction_count: int = 0
+    previous_attack_types: list[str] = Field(default_factory=list)
+    skill_level: str = "unknown"
+    environment_description: str = "enterprise_web_suite"
+    likely_goal: str = "unknown"
+    attack_phase: str = "recon"
+    detected_tools: list[str] = Field(default_factory=list)
+    session_history: list[Any] = Field(default_factory=list)
 
 
 @app.post("/honeypot-reply")
@@ -294,7 +342,8 @@ async def honeypot_reply(req: HoneypotInput):
     latency = round((time.monotonic() - t0) * 1000, 1)
 
     if not raw:
-        raw = '{"error": "Internal Server Error", "status": 500}'
+        logger.warning("Honeypot LLM empty response, using deterministic fallback")
+        raw = _fallback_honeypot_response(ctx)
 
     return JSONResponse(
         content={

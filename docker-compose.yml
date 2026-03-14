@@ -10,28 +10,35 @@ services:
     environment:
       PRODUCTION_BACKEND: http://production-web:3000
       HONEYPOT_BACKEND: http://victim-web:8080
+      CLICKHOUSE_URL: http://clickhouse:8123
       ML_SCORE_URL: http://ml-service:8001/score
       REDIS_URL: redis://redis:6379/0
-      ML_TIMEOUT_MS: "500"
+      ML_TIMEOUT_MS: "5000"
       BEHAVIORAL_SCORE_URL: http://mayasec-core:5001/api/behavioral/score
-      BEHAVIORAL_TIMEOUT_MS: "500"
+      BEHAVIORAL_TIMEOUT_MS: "5000"
       BEHAVIORAL_FEEDBACK_URL: http://core:5001/api/behavioral/feedback
-      BEHAVIORAL_FEEDBACK_TIMEOUT_MS: "200"
+      BEHAVIORAL_FEEDBACK_TIMEOUT_MS: "5000"
       LLM_WAF_URL: http://llm-service:8002/classify-zero-day
-      LLM_WAF_TIMEOUT_MS: "500"
+      LLM_WAF_TIMEOUT_MS: "10000"
       SCORE_THRESHOLD: "80"
       RATE_LIMIT_PER_IP: "200"
       PROXY_SENSOR_ID: ingress-proxy-01
+      API_EMIT_URL: http://api:5000/api/v1/emit-event
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-mayasec_internal_token}
     depends_on:
       ml-service:
         condition: service_healthy
       redis:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      api:
+        condition: service_started
     networks:
       - mayasec-net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -78,6 +85,48 @@ services:
     networks:
       - mayasec-net
 
+  # ClickHouse - raw HTTP traffic log storage
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: "1"
+    ports:
+      - "8123:8123"
+    volumes:
+      - clickhouse_data_v2:/var/lib/clickhouse
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8123/?query=SELECT%201"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - mayasec-net
+
+  neo4j:
+    image: neo4j:5
+    container_name: mayasec_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/mayasec_neo4j
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "mayasec_neo4j", "RETURN 1"]
+      interval: 20s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - mayasec-net
+
   # Migration Service - Runs migrations on startup
   migrations:
     build:
@@ -113,19 +162,24 @@ services:
       DB_NAME: ${DB_NAME:-mayasec}
       DB_USER: ${DB_USER:-mayasec}
       DB_PASSWORD: ${DB_PASSWORD:-mayasec}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: mayasec_neo4j
       CORE_PORT: 5001
       REDIS_URL: redis://redis:6379/0
       LLM_SERVICE_URL: http://llm-service:8002
       API_URL: http://api:5000
       ADMIN_TOKEN: ${ADMIN_TOKEN:-mayasec_internal_token}
       FLASK_ENV: production
-      MAYASEC_RESPONSE_MODE: ${MAYASEC_RESPONSE_MODE:-monitor}
+      MAYASEC_RESPONSE_MODE: ${MAYASEC_RESPONSE_MODE:-deception}
     depends_on:
       postgres:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      neo4j:
         condition: service_healthy
     ports:
       - "5001:5001"
@@ -162,7 +216,7 @@ services:
       API_DEBUG: 'False'
       ADMIN_TOKEN: ${ADMIN_TOKEN:-mayasec_internal_token}
       FLASK_ENV: production
-      MAYASEC_RESPONSE_MODE: ${MAYASEC_RESPONSE_MODE:-monitor}
+      MAYASEC_RESPONSE_MODE: ${MAYASEC_RESPONSE_MODE:-deception}
     depends_on:
       postgres:
         condition: service_healthy
@@ -187,6 +241,59 @@ services:
     networks:
       - mayasec-net
 
+  event-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.event-worker
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://mayasec:mayasec@postgres:5432/mayasec
+      EVENT_STREAM_NAME: mayasec:events
+      EVENT_STREAM_GROUP: mayasec-workers
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+    networks:
+      - mayasec-net
+
+  report-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: mayasec
+      DB_USER: mayasec
+      DB_PASSWORD: mayasec
+      REPORTS_DIR: reports
+      REPORT_SCHEDULER_POLL_SECONDS: 60
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@mayasec.local}
+      MAYASEC_RESPONSE_MODE: ${MAYASEC_RESPONSE_MODE:-deception}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    command: python workers/report_scheduler.py
+    volumes:
+      - ./reports:/app/reports
+    networks:
+      - mayasec-net
+
   # Production Backend - internal only, reached through ingress proxy
   production-web:
     build:
@@ -203,7 +310,7 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -215,15 +322,22 @@ services:
   # Victim Web - deception backend, internal only
   victim-web:
     build:
-      context: ./victim-web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: victim-web/Dockerfile
     environment:
       LLM_SERVICE_URL: http://llm-service:8002
-      LLM_HONEYPOT_TIMEOUT: "3"
       CORE_URL: http://core:5001
       INGESTOR_URL: http://ingestor:5001
+      REDIS_URL: redis://redis:6379/0
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-mayasec}
+      DB_USER: ${DB_USER:-mayasec}
+      DB_PASSWORD: ${DB_PASSWORD:-mayasec}
+      DEFAULT_TENANT_SLUG: demo
     depends_on:
       - llm-service
+      - redis
     ports: []
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)"]
@@ -310,6 +424,9 @@ services:
       DB_NAME: mayasec
       DB_USER: mayasec
       DB_PASSWORD: mayasec
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: mayasec_neo4j
       CORE_URL: http://core:5001
       LLM_SERVICE_URL: http://llm-service:8002
       OLLAMA_URL: http://ollama:11434
@@ -317,14 +434,18 @@ services:
       LLM_TIMEOUT_SECONDS: "15"
       LOG_LEVEL: INFO
     depends_on:
-      - postgres
-      - llm-service
+      postgres:
+        condition: service_healthy
+      llm-service:
+        condition: service_started
+      neo4j:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=5)"]
       interval: 15s
-      timeout: 5s
+      timeout: 8s
       retries: 10
-      start_period: 20s
+      start_period: 60s
     ports:
       - "8003:8003"
     networks:
@@ -348,7 +469,7 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -358,6 +479,9 @@ services:
       - mayasec-net
 
 volumes:
+  clickhouse_data_v2:
+    driver: local
+  neo4j_data:
   postgres_data:
     driver: local
   redis_data:

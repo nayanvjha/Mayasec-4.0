@@ -1,0 +1,296 @@
+.honeypot-session-viewer {
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-card);
+  padding: 14px;
+}
+
+.honeypot-toolbar {
+  display: grid;
+  grid-template-columns: 180px 1fr 180px 180px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.honeypot-input,
+.honeypot-select {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.honeypot-list {
+  display: grid;
+  gap: 10px;
+}
+
+.honeypot-card {
+  border: 1px solid var(--border-default);
+  border-left: 4px solid var(--accent-honeypot);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.honeypot-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.honeypot-attack-badge {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  color: var(--accent-honeypot);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 700;
+}
+
+.honeypot-sev-badge {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.honeypot-sev-low {
+  color: var(--sev-low);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.honeypot-sev-medium {
+  color: var(--sev-medium);
+  border-color: rgba(234, 179, 8, 0.5);
+}
+
+.honeypot-sev-high {
+  color: var(--sev-high);
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+.honeypot-sev-critical {
+  color: var(--sev-critical);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.honeypot-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.honeypot-snippet {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 8px;
+}
+
+.honeypot-toggle {
+  background: transparent;
+  color: var(--accent-honeypot);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.honeypot-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.replay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent-honeypot) 75%, transparent);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-honeypot) 26%, transparent),
+    color-mix(in srgb, var(--accent-honeypot) 16%, transparent)
+  );
+  color: #fbbf24;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-honeypot) 30%, transparent),
+              0 6px 16px rgba(245, 158, 11, 0.22);
+}
+
+.replay-btn:hover {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-honeypot) 36%, transparent),
+    color-mix(in srgb, var(--accent-honeypot) 24%, transparent)
+  );
+}
+
+.honeypot-empty {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(2, 6, 23, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-container {
+  width: min(1200px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--bg-deepest) 70%, transparent);
+}
+
+.modal-title-wrap h4 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.modal-subtitle {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.modal-close {
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.modal-split-layout {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  min-height: 520px;
+}
+
+.attacker-pane,
+.environment-pane {
+  padding: 14px;
+  overflow: auto;
+}
+
+.attacker-pane {
+  border-right: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--bg-deepest) 65%, transparent);
+}
+
+.attacker-pane h5,
+.environment-pane h5 {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+.attacker-detail {
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.attacker-payload-wrap {
+  margin-top: 10px;
+}
+
+.attacker-payload-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.attacker-payload {
+  margin: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  padding: 10px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.json-view {
+  margin: 0;
+  min-height: 420px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-honeypot) 35%, transparent);
+  background: color-mix(in srgb, var(--bg-deepest) 72%, transparent);
+  color: var(--text-primary);
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 980px) {
+  .honeypot-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-split-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .attacker-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-default);
+  }
+}

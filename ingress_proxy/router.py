@@ -21,14 +21,42 @@ Design invariants
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 import aiohttp
+import httpx
 from aiohttp import web
+
+from traffic_logger import traffic_logger
+
+
+async def emit_event_to_api(event_payload: dict):
+    api_url = os.getenv("API_EMIT_URL", "http://api:5000/api/v1/emit-event")
+    admin_token = os.getenv("ADMIN_TOKEN", "mayasec_internal_token")
+    api_key = os.getenv("MAYASEC_API_KEY")
+
+    headers = {
+        "Authorization": f"Bearer {admin_token}",
+        "Content-Type": "application/json",
+    }
+    if api_key:
+        headers["X-API-Key"] = api_key
+
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.post(
+                api_url,
+                json=event_payload,
+                headers=headers,
+            )
+    except Exception:
+        pass  # Never let emit failure block the proxy
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -149,12 +177,32 @@ async def route_request(
         or request.remote
         or "unknown"
     )
+    request_uri = request.path_qs
+    target_backend = destination_label
+
+    asyncio.create_task(emit_event_to_api({
+        "type": "event_ingested",
+        "data": {
+            "event_type": attack_type,
+            "source_ip": client_ip,
+            "threat_score": float(score),
+            "destination": target_backend,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "uri": request_uri,
+            "severity": (
+                "critical" if score >= 90 else
+                "high"     if score >= 75 else
+                "medium"   if score >= 50 else
+                "low"
+            )
+        }
+    }))
 
     logger.info(
         "routing_decision",
         extra={
             "ip": client_ip,
-            "uri": request.path_qs,
+            "uri": request_uri,
             "score": score,
             "attack_type": attack_type,
             "destination_backend": destination_label,
@@ -196,6 +244,8 @@ async def route_request(
 
             elapsed_ms = (time.monotonic() - t_start) * 1000.0
 
+            _schedule_traffic_log(request=request, status=upstream_resp.status, body=body)
+
             logger.debug(
                 "upstream_response",
                 extra={
@@ -216,6 +266,7 @@ async def route_request(
     # 4. Error handling — network / connection failures
     # ------------------------------------------------------------------
     except aiohttp.ClientConnectorError as exc:
+        _schedule_traffic_log(request=request, status=502, body=body if 'body' in locals() else b"")
         logger.error(
             "backend_connection_error",
             extra={
@@ -235,6 +286,7 @@ async def route_request(
         )
 
     except aiohttp.ClientResponseError as exc:
+        _schedule_traffic_log(request=request, status=502, body=body if 'body' in locals() else b"")
         logger.error(
             "backend_response_error",
             extra={
@@ -255,6 +307,7 @@ async def route_request(
         )
 
     except aiohttp.ServerTimeoutError as exc:
+        _schedule_traffic_log(request=request, status=502, body=body if 'body' in locals() else b"")
         logger.error(
             "backend_timeout",
             extra={
@@ -274,6 +327,7 @@ async def route_request(
         )
 
     except Exception as exc:  # pragma: no cover — catch-all safety net
+        _schedule_traffic_log(request=request, status=502, body=body if 'body' in locals() else b"")
         logger.exception(
             "unexpected_routing_error",
             extra={
@@ -312,3 +366,33 @@ def _host_from_url(url: str) -> str:
     without_scheme = url.split("://", 1)[-1]
     # Strip any trailing path
     return without_scheme.split("/")[0]
+
+
+def _schedule_traffic_log(request: web.Request, status: int, body: bytes) -> None:
+    """Queue raw traffic record asynchronously; never block request handling."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    src_ip = xff.split(",")[0].strip() if xff else (request.remote or "unknown")
+
+    content_length_header = request.headers.get("Content-Length")
+    try:
+        content_length = int(content_length_header) if content_length_header else len(body or b"")
+    except Exception:
+        content_length = len(body or b"")
+
+    record = {
+        "src_ip": src_ip,
+        "method": request.method,
+        "path": request.path,
+        "query_string": request.query_string or "",
+        "status": int(status),
+        "user_agent": request.headers.get("User-Agent", ""),
+        "referer": request.headers.get("Referer", ""),
+        "content_length": max(0, content_length),
+        "request_body": (body or b"").decode("utf-8", errors="ignore"),
+    }
+
+    try:
+        asyncio.create_task(traffic_logger.log(record))
+    except Exception:
+        # Must never impact routing path.
+        pass

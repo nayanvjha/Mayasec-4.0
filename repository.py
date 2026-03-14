@@ -345,6 +345,156 @@ class EventRepository(BaseRepository):
         finally:
             if conn:
                 self.return_connection(conn)
+
+    def find_active_correlation(self, source_ip: str, destination: Optional[str],
+                                window_minutes: int = 10) -> Optional[Dict[str, Any]]:
+        """Find active correlation state for source/destination within time window."""
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            cursor.execute(
+                '''
+                SELECT correlation_id::text AS correlation_id,
+                       metadata,
+                       timestamp
+                FROM event_correlations
+                WHERE ip_address = %s::inet
+                  AND timestamp >= NOW() - (%s || ' minutes')::interval
+                  AND (
+                        %s IS NULL
+                        OR COALESCE(metadata->>'destination', '') = %s
+                  )
+                ORDER BY timestamp DESC
+                LIMIT 1
+                ''',
+                (source_ip, int(window_minutes), destination, destination)
+            )
+
+            row = cursor.fetchone()
+            cursor.close()
+            if not row:
+                return None
+
+            metadata = row.get('metadata') or {}
+            state = metadata.get('state', {}) if isinstance(metadata, dict) else {}
+            return {
+                'correlation_id': row.get('correlation_id'),
+                'state': state,
+                'timestamp': row.get('timestamp').isoformat() if row.get('timestamp') else None,
+            }
+
+        except psycopg2.Error as e:
+            logger.error(f"find_active_correlation failed: {e}")
+            return None
+        finally:
+            if conn:
+                self.return_connection(conn)
+
+    def upsert_correlation_state(self, correlation_id: str, source_ip: str,
+                                 destination: Optional[str], event_id: Optional[str],
+                                 severity: str, event_time: datetime,
+                                 state: Dict[str, Any]) -> bool:
+        """Create or update correlation state row."""
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            metadata = {
+                'destination': destination,
+                'state': state,
+                'last_event_id': event_id,
+                'updated_at': datetime.utcnow().isoformat() + 'Z',
+            }
+
+            cursor.execute(
+                '''
+                INSERT INTO event_correlations
+                (correlation_id, timestamp, correlation_type, event_ids, ip_address,
+                 threat_level, threat_score, description, metadata)
+                VALUES (%s::uuid, %s, %s, %s::uuid[], %s::inet, %s, %s, %s, %s)
+                ON CONFLICT (correlation_id) DO UPDATE SET
+                    timestamp = EXCLUDED.timestamp,
+                    event_ids = CASE
+                        WHEN event_correlations.event_ids IS NULL THEN EXCLUDED.event_ids
+                        ELSE (
+                            SELECT ARRAY(
+                                SELECT DISTINCT e
+                                FROM unnest(COALESCE(event_correlations.event_ids, ARRAY[]::uuid[]) || COALESCE(EXCLUDED.event_ids, ARRAY[]::uuid[])) AS e
+                            )
+                        )
+                    END,
+                    threat_level = EXCLUDED.threat_level,
+                    threat_score = EXCLUDED.threat_score,
+                    metadata = COALESCE(EXCLUDED.metadata, event_correlations.metadata)
+                ''',
+                (
+                    correlation_id,
+                    event_time,
+                    'session_correlation',
+                    [event_id] if event_id else [],
+                    source_ip,
+                    severity,
+                    0,
+                    'correlated attack session',
+                    json.dumps(metadata),
+                )
+            )
+
+            conn.commit()
+            cursor.close()
+            return True
+
+        except psycopg2.Error as e:
+            logger.error(f"upsert_correlation_state failed: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                self.return_connection(conn)
+
+    def set_event_correlation(self, event_id: Optional[str], correlation_id: str) -> bool:
+        """Attach correlation_id to event records across event tables."""
+        if not event_id:
+            return False
+
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute(
+                '''UPDATE security_logs SET correlation_id = %s WHERE event_id = %s''',
+                (correlation_id, event_id)
+            )
+            cursor.execute(
+                '''UPDATE login_attempts SET correlation_id = %s WHERE event_id = %s''',
+                (correlation_id, event_id)
+            )
+            cursor.execute(
+                '''UPDATE honeypot_logs SET correlation_id = %s WHERE event_id = %s''',
+                (correlation_id, event_id)
+            )
+            cursor.execute(
+                '''UPDATE network_flows SET correlation_id = %s WHERE event_id = %s''',
+                (correlation_id, event_id)
+            )
+
+            conn.commit()
+            cursor.close()
+            return True
+
+        except psycopg2.Error as e:
+            logger.error(f"set_event_correlation failed: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                self.return_connection(conn)
     
     def get_ip_threat_summary(self, ip_address: str, days: int = 7) -> Dict[str, Any]:
         """Get threat summary for an IP address"""
@@ -382,11 +532,54 @@ class EventRepository(BaseRepository):
 
 class AlertRepository(BaseRepository):
     """Repository for alert and response management"""
+
+    def ensure_alert_rule(self, rule_id: str, rule_name: Optional[str] = None,
+                          title: Optional[str] = None, severity: str = 'medium',
+                          metadata: Optional[Dict[str, Any]] = None, **_: Any) -> bool:
+        """Best-effort upsert for alert rule metadata used by correlators."""
+        resolved_title = title or rule_name or rule_id
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                '''
+                INSERT INTO alert_rules
+                (rule_id, rule_name, description, rule_type, severity, condition_json)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (rule_id) DO UPDATE SET
+                    rule_name = EXCLUDED.rule_name,
+                    description = EXCLUDED.description,
+                    severity = EXCLUDED.severity,
+                    updated_at = CURRENT_TIMESTAMP
+                ''',
+                (
+                    rule_id,
+                    resolved_title,
+                    (metadata or {}).get('description', 'Auto-managed correlation rule'),
+                    (metadata or {}).get('rule_type', 'correlation'),
+                    severity,
+                    json.dumps((metadata or {}).get('condition_json', {'source': 'auto'})),
+                )
+            )
+            conn.commit()
+            cursor.close()
+            return True
+        except psycopg2.Error as e:
+            logger.warning(f"ensure_alert_rule skipped: {e}")
+            if conn:
+                conn.rollback()
+            return True
+        finally:
+            if conn:
+                self.return_connection(conn)
     
     def create_alert(self, rule_id: str, title: str, severity: str,
                      event_ids: List[str], ip_address: Optional[str] = None,
                      username: Optional[str] = None,
-                     metadata: Optional[Dict[str, Any]] = None) -> Optional[str]:
+                     correlation_id: Optional[str] = None,
+                     metadata: Optional[Dict[str, Any]] = None,
+                     **_: Any) -> Optional[str]:
         """
         Create new alert
         
@@ -399,12 +592,13 @@ class AlertRepository(BaseRepository):
             
             cursor.execute('''
                 INSERT INTO alerts
-                (rule_id, title, severity, event_ids, ip_address, username, description, metadata)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                (rule_id, title, severity, event_ids, ip_address, username, description, correlation_id, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING alert_id
             ''', (
                 rule_id, title, severity, event_ids or [],
                 ip_address, username, title,
+                correlation_id,
                 json.dumps(metadata or {})
             ))
             
@@ -417,6 +611,33 @@ class AlertRepository(BaseRepository):
             logger.error(f"Failed to create alert: {e}")
             if conn:
                 conn.rollback()
+            return None
+        finally:
+            if conn:
+                self.return_connection(conn)
+
+    def get_alert_by_correlation(self, correlation_id: str) -> Optional[str]:
+        """Get latest open alert_id for a correlation session."""
+        conn = None
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                '''
+                SELECT alert_id::text
+                FROM alerts
+                WHERE correlation_id = %s
+                  AND status = 'open'
+                ORDER BY timestamp DESC
+                LIMIT 1
+                ''',
+                (correlation_id,)
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            return row[0] if row else None
+        except psycopg2.Error as e:
+            logger.error(f"get_alert_by_correlation failed: {e}")
             return None
         finally:
             if conn:

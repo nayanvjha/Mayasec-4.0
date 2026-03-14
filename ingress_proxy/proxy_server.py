@@ -31,6 +31,7 @@ def _load_local_module(module_name: str) -> Any:
 _ml_client = _load_local_module("ml_client")
 _telemetry_mirror = _load_local_module("telemetry_mirror")
 _router = _load_local_module("router")
+_traffic_logger_mod = importlib.import_module("traffic_logger")
 _rate_limiter = _load_local_module("rate_limiter")
 _redis_client = _load_local_module("redis_client")
 _config = _load_local_module("config")
@@ -72,6 +73,16 @@ async def handle_request(request) -> Any:
 
     try:
         features = await _telemetry_mirror.extract_features(request)
+
+        # Ensure ML payload always includes URI/body for rule-based pre-ML detection.
+        if not isinstance(features, dict):
+            features = {}
+        features.setdefault("uri", request.path_qs)
+        raw_body = getattr(request, "_read_bytes", b"")
+        if isinstance(raw_body, (bytes, bytearray)):
+            features.setdefault("body", bytes(raw_body).decode("utf-8", errors="ignore"))
+        else:
+            features.setdefault("body", "")
 
         behavioral_fn = getattr(_ml_client, "behavioral_score_request", None)
         behavioral_coro = (
@@ -149,6 +160,11 @@ async def _on_startup(app) -> None:
     _llm_waf_client.set_session(session)
     _router.set_session(session)
 
+    traffic_logger = getattr(_traffic_logger_mod, "traffic_logger", None)
+    if traffic_logger is not None:
+        app["traffic_logger"] = traffic_logger
+        app["traffic_logger_task"] = asyncio.create_task(traffic_logger.flush_worker())
+
     try:
         redis_init_fn = getattr(_redis_client, "get_pool", None)
         if callable(redis_init_fn):
@@ -158,6 +174,23 @@ async def _on_startup(app) -> None:
 
 
 async def _on_cleanup(app) -> None:
+    traffic_logger = app.get("traffic_logger")
+    traffic_logger_task = app.get("traffic_logger_task")
+
+    if traffic_logger is not None:
+        try:
+            await traffic_logger.stop()
+        except Exception:
+            logger.exception("traffic_logger_stop_failed")
+
+    if traffic_logger_task is not None:
+        try:
+            await asyncio.wait_for(traffic_logger_task, timeout=5)
+        except asyncio.TimeoutError:
+            traffic_logger_task.cancel()
+        except Exception:
+            logger.exception("traffic_logger_task_shutdown_failed")
+
     try:
         redis_close_fn = getattr(_redis_client, "close_pool", None)
         if callable(redis_close_fn):

@@ -1,40 +1,50 @@
-/**
- * @deprecated FROZEN - Do not modify, refactor, or enhance
- * 
- * This component is part of the legacy dashboard architecture.
- * Status: DEPRECATED as of January 15, 2026
- * 
- * Reason: Static metric cards and REST polling patterns are not
- * compatible with the new SOC Event Console architecture.
- * 
- * Migration: This component will be removed when the new SOC Console
- * is fully integrated. Do NOT invest development time in this code.
- */
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApi } from '../hooks/useApi';
 import './HealthPanel.css';
 
 function HealthPanel({ apiUrl, pollInterval = 30000 }) {
-  const { data: health, loading, error } = useApi(
+  const { data: health, loading, error, refetch } = useApi(
     `${apiUrl}/api/v1/health`,
     {},
     pollInterval
   );
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
 
-  if (error) {
+  useEffect(() => {
+    if (!loading) {
+      setLoadingTimedOut(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setLoadingTimedOut(true);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const hasHealthData = Boolean(health && Object.keys(health).length > 0);
+  const statusRaw = typeof health?.status === 'string' ? health.status.toLowerCase() : '';
+  const isHealthy = statusRaw === 'healthy';
+  const statusClass = isHealthy ? 'status-healthy' : 'status-unhealthy';
+
+  if (error || (loading && loadingTimedOut)) {
     return (
       <div className="health-panel panel panel-error">
         <h3>System Health</h3>
-        <div className="error-message">
-          <span className="error-icon">⚠️</span>
-          <span>{error}</span>
+        <div className="health-status status-unhealthy">
+          <div className="health-indicator"></div>
+          <div className="health-info">
+            <span className="status-label">Status:</span>
+            <span className="status-value" style={{ color: '#ff9800' }}>API Unreachable</span>
+          </div>
         </div>
+        <button onClick={refetch}>Retry</button>
       </div>
     );
   }
 
-  if (loading) {
+  if (loading && !hasHealthData) {
     return (
       <div className="health-panel panel panel-loading">
         <h3>System Health</h3>
@@ -43,17 +53,21 @@ function HealthPanel({ apiUrl, pollInterval = 30000 }) {
     );
   }
 
-  if (!health) {
+  if (!hasHealthData) {
     return (
       <div className="health-panel panel panel-empty">
         <h3>System Health</h3>
-        <div className="empty-state">No data available</div>
+        <div className="health-status status-unhealthy">
+          <div className="health-indicator"></div>
+          <div className="health-info">
+            <span className="status-label">Status:</span>
+            <span className="status-value" style={{ color: '#ff9800' }}>API Unreachable</span>
+          </div>
+        </div>
+        <button onClick={refetch}>Retry</button>
       </div>
     );
   }
-
-  const isHealthy = health.status === 'healthy';
-  const statusClass = isHealthy ? 'status-healthy' : 'status-unhealthy';
 
   return (
     <div className="health-panel panel">
@@ -61,11 +75,11 @@ function HealthPanel({ apiUrl, pollInterval = 30000 }) {
       
       <div className={`health-status ${statusClass}`}>
         <div className="health-indicator">
-          {isHealthy ? '🟢' : '🔴'}
+          {isHealthy ? '' : ''}
         </div>
         <div className="health-info">
           <span className="status-label">Status:</span>
-          <span className="status-value">{health.status.toUpperCase()}</span>
+          <span className="status-value">{isHealthy ? 'Healthy' : 'Degraded'}</span>
         </div>
       </div>
 

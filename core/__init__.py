@@ -17,6 +17,7 @@ Non-responsibilities:
 """
 
 import os
+import asyncio
 import logging
 import json
 import threading
@@ -38,6 +39,7 @@ from core.session_graph import SessionGraph
 from core.response_escalator import ResponseEscalator
 from core.drift_detector import DriftDetector
 from core.retrain_scheduler import RetrainScheduler
+from core.threat_correlator import schedule_graph_write
 
 # Import repository layer
 from repository import EventRepository, AlertRepository, StatisticsRepository, DatabaseConfig
@@ -1034,6 +1036,8 @@ def process_events():
                 
                 # Store enriched event via repository layer
                 if event_repo.create_event(event, analysis_result):
+                    schedule_graph_write(event)
+
                     processed += 1
                     logger.info(f"Processed event {event_id} - Score: {analysis_result['threat_score']}")
 
@@ -1180,6 +1184,8 @@ def ingest_events():
             }
 
             if event_repo.create_event(event, analysis):
+                schedule_graph_write(event)
+
                 processed += 1
 
                 ttp_event_data = {
@@ -1451,10 +1457,11 @@ def store_honeypot_capture():
         cursor = conn.cursor()
         cursor.execute(
             '''
-            INSERT INTO honeypot_captures (session_id, source_ip, attack_type, request_payload, llm_response, persona_type)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO honeypot_captures (tenant_id, session_id, source_ip, attack_type, request_payload, llm_response, persona_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ''',
             (
+                data.get('tenant_id'),
                 data.get('session_id', ''),
                 data.get('source_ip', '0.0.0.0'),
                 data.get('attack_type', 'unknown'),
@@ -1530,10 +1537,10 @@ def behavioral_feedback():
         if schema == 'preferred':
             cursor.execute(
                 '''
-                INSERT INTO behavioral_baselines (feature_vector, intent, confirmed_by, timestamp)
-                VALUES (%s::jsonb, %s, %s, %s)
+                INSERT INTO behavioral_baselines (feature_vector, intent, confirmed_by, recorded_at, source_ip)
+                VALUES (%s::jsonb, %s, %s, %s, %s)
                 ''',
-                (feature_vector_json, intent, confirmed_by, now)
+                (feature_vector_json, intent, confirmed_by, now, '0.0.0.0')
             )
         else:
             cursor.execute(

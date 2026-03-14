@@ -88,6 +88,7 @@ class AttackEventGenerator:
             response = requests.post(
                 f"{self.api_url}/api/v1/emit-event",
                 json=event_data,
+                headers={"Authorization": "Bearer mayasec_internal_token"},
                 timeout=5
             )
             
@@ -267,7 +268,7 @@ class AttackEventGenerator:
             # Determine attack phase
             if progress < 0.25:
                 logger.info("🔵 Phase 1: Initial Reconnaissance")
-                self.port_scan(intensity=3)
+                self.port_scan(num_ports=3)
                 phase = 1
             elif progress < 0.50:
                 logger.info("🟡 Phase 2: Brute Force Attempts")

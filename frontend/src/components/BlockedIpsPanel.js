@@ -10,6 +10,7 @@ function BlockedIpsPanel({ apiUrl, pollInterval = 30000 }) {
   const [refreshToken, setRefreshToken] = useState(0);
   const [selected, setSelected] = useState({});
   const [actionState, setActionState] = useState({ loading: false, error: null, success: null });
+  const [allowSpinner, setAllowSpinner] = useState(true);
 
   const { data, loading, error } = useApi(
     `${apiUrl}/api/v1/alerts/blocked?limit=200&refresh=${refreshToken}`,
@@ -17,13 +18,28 @@ function BlockedIpsPanel({ apiUrl, pollInterval = 30000 }) {
     pollInterval
   );
 
-  const blockedIps = Array.isArray(data?.blocked_ips)
-    ? data.blocked_ips
-    : Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data)
-        ? data
-        : [];
+  const blockedIps = useMemo(() => (
+    Array.isArray(data?.blocked_ips)
+      ? data.blocked_ips
+      : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data)
+          ? data
+          : []
+  ), [data]);
+
+  const hasKnownResponseShape =
+    Array.isArray(data)
+    || Array.isArray(data?.blocked_ips)
+    || Array.isArray(data?.data);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAllowSpinner(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!blockedIps.length) {
@@ -129,7 +145,7 @@ function BlockedIpsPanel({ apiUrl, pollInterval = 30000 }) {
     );
   }
 
-  if (loading && blockedIps.length === 0) {
+  if (loading && blockedIps.length === 0 && !hasKnownResponseShape && allowSpinner) {
     return (
       <div className="blocked-ips-panel panel panel-loading">
         <h3>Blocked IPs</h3>
@@ -142,7 +158,10 @@ function BlockedIpsPanel({ apiUrl, pollInterval = 30000 }) {
     return (
       <div className="blocked-ips-panel panel panel-empty">
         <h3>Blocked IPs</h3>
-        <div className="empty-state">No active blocks</div>
+        <div className="empty-state">
+          <div></div>
+          <div>No blocked IPs</div>
+        </div>
       </div>
     );
   }

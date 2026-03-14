@@ -15,10 +15,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY mayasec_api.py .
+COPY story_builder.py .
 COPY repository.py .
 COPY policy_engine.py .
 COPY response_mode.py .
+COPY correlation_engine.py .
+COPY correlation_escalation.py .
+COPY response_plane.py .
+COPY config.py .
+COPY behavior_analyzer.py .
+COPY threat_intel.py .
+COPY ml_client.py .
 COPY core/ ./core/
+COPY workers/ ./workers/
 
 # Expose port
 EXPOSE 5000

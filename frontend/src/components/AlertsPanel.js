@@ -1,17 +1,4 @@
-/**
- * @deprecated FROZEN - Do not modify, refactor, or enhance
- * 
- * This component is part of the legacy dashboard architecture.
- * Status: DEPRECATED as of January 15, 2026
- * 
- * Reason: Alert summary list and REST polling patterns are not
- * compatible with the new SOC Event Console architecture.
- * 
- * Migration: This component will be removed when the new SOC Console
- * is fully integrated. Do NOT invest development time in this code.
- */
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApi } from '../hooks/useApi';
 import './AlertsPanel.css';
 
@@ -21,8 +8,23 @@ function AlertsPanel({ apiUrl, limit = 20, pollInterval = 30000 }) {
     {},
     pollInterval
   );
+  const [allowSpinner, setAllowSpinner] = useState(true);
 
-  const alerts = response?.data || response?.alerts || [];
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAllowSpinner(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const alerts = Array.isArray(response)
+    ? response
+    : response?.data || response?.alerts || [];
+  const hasKnownResponseShape =
+    Array.isArray(response)
+    || Array.isArray(response?.data)
+    || Array.isArray(response?.alerts);
 
   if (error) {
     return (
@@ -36,7 +38,7 @@ function AlertsPanel({ apiUrl, limit = 20, pollInterval = 30000 }) {
     );
   }
 
-  if (loading) {
+  if (loading && !hasKnownResponseShape && allowSpinner) {
     return (
       <div className="alerts-panel panel panel-loading">
         <h3>Recent Alerts</h3>
@@ -49,7 +51,10 @@ function AlertsPanel({ apiUrl, limit = 20, pollInterval = 30000 }) {
     return (
       <div className="alerts-panel panel panel-empty">
         <h3>Recent Alerts</h3>
-        <div className="empty-state">No alerts at this time</div>
+        <div className="empty-state">
+          <div></div>
+          <div>No alerts detected</div>
+        </div>
       </div>
     );
   }

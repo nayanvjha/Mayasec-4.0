@@ -20,6 +20,11 @@ export function useWebSocket(apiUrl, handlers = {}) {
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const reconnectAttemptsRef = useRef(0);
+  const handlersRef = useRef(handlers);
+
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
 
   useEffect(() => {
     if (!apiUrl) return;
@@ -77,31 +82,49 @@ export function useWebSocket(apiUrl, handlers = {}) {
           const payload = JSON.parse(event.data);
           if (!payload || !allowedTypes.has(payload.type)) return;
 
+          const normalizeEventData = (raw) => {
+            if (!raw || typeof raw !== 'object') return {};
+            if (raw.data && typeof raw.data === 'object') {
+              return {
+                ...raw.data,
+                timestamp: raw.data.timestamp || raw.timestamp || payload.timestamp,
+                event_type: raw.data.event_type || raw.event_type || raw.type,
+                destination: raw.data.destination || raw.destination || payload?.data?.destination,
+              };
+            }
+            return {
+              ...raw,
+              timestamp: raw.timestamp || payload.timestamp,
+              destination: raw.destination || payload?.data?.destination,
+            };
+          };
+
           if (payload.type === 'response_mode') {
             setResponseMode(payload.mode || null);
-            if (handlers.onResponseMode) handlers.onResponseMode(payload.mode);
+            if (handlersRef.current.onResponseMode) handlersRef.current.onResponseMode(payload.mode);
             return;
           }
 
           if (payload.type === 'response_decision') {
             setLastResponseDecision(payload);
-            if (handlers.onResponseDecision) handlers.onResponseDecision(payload);
+            if (handlersRef.current.onResponseDecision) handlersRef.current.onResponseDecision(payload);
           }
 
           const data = payload.data || {};
           if (payload.type === 'event_ingested') {
-            setEvents((prevEvents) => [data, ...prevEvents]);
-            if (handlers.onEvent) handlers.onEvent(data);
+            const normalized = normalizeEventData(data);
+            setEvents((prevEvents) => [normalized, ...prevEvents]);
+            if (handlersRef.current.onEvent) handlersRef.current.onEvent(normalized);
           } else if (payload.type === 'alert_created') {
             setAlerts((prevAlerts) => [data, ...prevAlerts]);
             setLastAlert(data);
-            if (handlers.onAlert) handlers.onAlert(data);
+            if (handlersRef.current.onAlert) handlersRef.current.onAlert(data);
           } else if (payload.type === 'ip_blocked' || payload.type === 'ip_unblocked') {
             setLastResponse(data);
-            if (handlers.onResponse) handlers.onResponse(data);
+            if (handlersRef.current.onResponse) handlersRef.current.onResponse(data);
           } else if (payload.type === 'phase_escalated') {
             setLastPolicyDecision(data);
-            if (handlers.onPolicyDecision) handlers.onPolicyDecision(data);
+            if (handlersRef.current.onPolicyDecision) handlersRef.current.onPolicyDecision(data);
           }
         } catch (parseError) {
           console.warn('Invalid WebSocket payload', parseError);
