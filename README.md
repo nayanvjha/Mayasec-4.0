@@ -1,418 +1,109 @@
-# Mayasec 4.0 - Security Monitoring Platform
+# MAYASEC 4.0: AI-Assisted Deception-First SOC Platform
 
-Distributed security monitoring and threat intelligence platform with multi-sensor support, real-time event ingestion, and honeypot integration.
-
-## Architecture Overview
-
-### Sensor vs Platform
-
-**Platform (Central Mayasec):**
-- Flask web application running on designated host
-- SQLite3 database for event storage and analytics
-- Web dashboard for security visualization
-- RESTful API (`/api/ingest/event`) for event collection
-- Configurable ingestion modes (local file or API-driven)
-- Single point for security monitoring and reporting
-
-**Sensors (Suricata + Forwarder):**
-- Suricata IDS running on monitored network segments
-- Generates EVE JSON logs in real-time
-- `suricata_forwarder.py` daemon tails eve.json locally
-- Forwards alerts to central platform via HTTP POST
-- No root privileges required (user-accessible logs)
-- Automatic retry with exponential backoff
-- Stateless design (can scale horizontally)
-
-### Data Flow
-
-```
-Suricata (Sensor Host)
-    ↓
-eve.json file
-    ↓
-suricata_forwarder.py (tails + parses)
-    ↓
-POST /api/ingest/event (HTTP)
-    ↓
-Mayasec Platform
-    ↓
-log_ingestion.py (routes by event type)
-    ↓
-SQLite3 (security_logs, honeypot_logs, login_attempts)
-    ↓
-Web Dashboard / API
-```
+Mayasec 4.0 is an advanced, multi-service security platform redefining threat detection through active deception, machine learning, and AI-assisted investigation. Moving beyond traditional alerting architectures, Mayasec 4.0 utilizes a stateful **3-Tier Honeypot Response Engine**, **Multi-Tenant Row-Level Security**, and an **AI-driven SOC Copilot** to trap, analyze, and neutralize attackers.
 
 ---
 
-## Running Mayasec on Normal OS
+## 🚀 Key Features
 
-### Prerequisites
-
-- Python 3.6+
-- SQLite3
-- Flask 1.x or 2.x
-- pip (Python package manager)
-
-### Quick Start (Single Host)
-
-1. **Install dependencies:**
-```bash
-pip install flask requests urllib3 werkzeug
-```
-
-2. **Run the platform:**
-```bash
-export FLASK_APP=app.py
-export FLASK_ENV=development
-python app.py
-```
-
-Platform starts on `http://localhost:8000`
-
-3. **Access dashboard:**
-```bash
-# Login with default credentials
-# Username: admin
-# Password: admin
-```
-
-### Configuration
-
-**Environment variables:**
-- `FLASK_SECRET_KEY` - Session encryption key (auto-generated if not set)
-- `DATABASE_PATH` - SQLite database location (default: `./security_logs.db`)
-- `USE_LOCAL_LOGS` - Read Suricata logs from file (default: `true`)
-- `SURICATA_EVE_JSON` - Path to Suricata eve.json (default: `/var/log/suricata/eve.json`)
-
-**Example with custom settings:**
-```bash
-export DATABASE_PATH=/var/lib/mayasec/security.db
-export USE_LOCAL_LOGS=false
-python app.py
-```
-
-### Production Deployment
-
-For production, use a WSGI server:
-
-```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:8000 app:app
-```
-
-Create systemd service file (`/etc/systemd/system/mayasec.service`):
-```ini
-[Unit]
-Description=Mayasec Security Platform
-After=network.target
-
-[Service]
-Type=notify
-User=mayasec
-WorkingDirectory=/opt/mayasec
-Environment="FLASK_ENV=production"
-Environment="DATABASE_PATH=/var/lib/mayasec/security.db"
-ExecStart=/usr/bin/gunicorn -w 4 -b 127.0.0.1:8000 app:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl enable mayasec
-sudo systemctl start mayasec
-```
+*   **Active Deception Pipeline:** Traps attackers in dynamically generated sandbox environments.
+*   **3-Tier Response Engine:**
+    *   *Tier 1 (Rules/ML):* High-speed, low-latency dropping of obvious brute-force or noise.
+    *   *Tier 2 (Cached LLM WAF):* AI-assisted WAF for zero-day payloads, utilizing local `Ollama` models and Redis caching.
+    *   *Tier 3 (Stateful Honeypot):* Diverts persistent, high-value attackers to the `victim-web` decoy to gather intelligence.
+*   **Multi-Tenant Architecture:** Built from the ground up with strict PostgreSQL Row-Level Security (RLS) for true SaaS multi-tenancy.
+*   **Graph-Assisted SOC Copilot:** Natural language investigation utilizing `Neo4j` for attack correlation and visualization.
+*   **Real-time Event Streaming:** `Redis Streams` power low-latency telemetry ingestion from Edge sensors to core processors.
 
 ---
 
-## Deploying Suricata + Forwarder
+## 🏗️ Platform Architecture
 
-### Prerequisites on Sensor Host
+Mayasec 4.0 is designed as a distributed microservice architecture.
 
-- Suricata IDS 6.0+ (installed and configured)
-- Python 3.6+ with pip
-- Network connectivity to platform host
-
-### Installation
-
-1. **Install forwarder dependencies:**
-```bash
-pip install -r requirements-forwarder.txt
+```text
+Mayasec-4.0-main/
+├── docker-compose.yml                # Main platform orchestration
+├── mayasec_api.py                    # Control-plane API service (Port 5000)
+├── core/                             # Threat correlation & behavioral engine (Port 5001)
+├── ingress_proxy/                    # External entrypoint, HTTP proxy, and scoring router (Port 80/443)
+├── victim-web/                       # Tier-3 Deception app (Honeypot)
+├── ml-service/                       # PyTorch/XGBoost ML scoring API (Port 8001)
+├── llm-service/                      # LLM WAF integration (Ollama / OpenAI) (Port 8002)
+├── soc-copilot/                      # Graph-RAG AI analyst assistant (Port 8003)
+├── frontend/                         # React SOC Dashboard UI (Port 3000)
+├── workers/                          # Async workers (Event stream consumer, Report scheduler)
+├── migrations/                       # PostgreSQL RLS and schema definitions
+└── docs/                             # Architecture and API documentation
 ```
 
-2. **Configure forwarder:**
+### 🕸️ Service Topology
 
-Option A - Environment variables:
-```bash
-export MAYASEC_API_URL="http://central-host:8000"
-export MAYASEC_SENSOR_ID="suricata-dmz-01"
-export SURICATA_EVE_JSON="/var/log/suricata/eve.json"
-python suricata_forwarder.py
-```
-
-Option B - Configuration file:
-```bash
-# Copy and edit example config
-cp forwarder-config.example.json /etc/mayasec/forwarder.json
-
-# Edit API URL and sensor ID in /etc/mayasec/forwarder.json
-python suricata_forwarder.py --config /etc/mayasec/forwarder.json
-```
-
-Option C - Command-line arguments:
-```bash
-python suricata_forwarder.py \
-  --api-url http://central-host:8000 \
-  --sensor-id suricata-dmz-01 \
-  --eve-json /var/log/suricata/eve.json
-```
-
-### Systemd Integration
-
-Create `/etc/systemd/system/suricata-forwarder.service`:
-```ini
-[Unit]
-Description=Mayasec Suricata Forwarder
-After=suricata.service network.target
-Wants=suricata.service
-
-[Service]
-Type=simple
-User=suricata
-WorkingDirectory=/opt/mayasec-forwarder
-Environment="MAYASEC_API_URL=http://central-host:8000"
-Environment="MAYASEC_SENSOR_ID=suricata-prod"
-Environment="LOG_LEVEL=INFO"
-ExecStart=/usr/bin/python3 suricata_forwarder.py \
-  --log-file /var/log/mayasec/forwarder.log
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable suricata-forwarder
-sudo systemctl start suricata-forwarder
-```
-
-### Verification
-
-Check if events are being forwarded:
-```bash
-# On sensor host - check forwarder logs
-tail -f /var/log/mayasec/forwarder.log
-
-# On platform host - query API status
-curl http://localhost:8000/api/status
-
-# Check database for events from sensor
-sqlite3 security_logs.db "SELECT sensor_id, COUNT(*) FROM security_logs GROUP BY sensor_id;"
-```
+| Service | Role | Network Port / Access |
+|---|---|---|
+| **Ingress Proxy** | Public HTTP/HTTPS gateway, routing logic | `80`, `443` |
+| **Mayasec UI** | React-based SOC dashboard | `3000` |
+| **Control API** | Control plane (`/api/v1/*`) | `5000` |
+| **Core Engine** | Behavioral analysis & correlation | `5001` |
+| **ML Service** | Request scoring based on ML models | Internal (`8001`) |
+| **LLM Service** | Zero-day payload classifier | `8002` |
+| **SOC Copilot** | MAYASEC AI Assistant | `8003` |
+| **Victim Web** | Deception decoy backend | Internal (`8080`) |
+| **Databases** | Storage Layer | `Postgres (5432)`, `Redis (6379)`, `ClickHouse (8123)`, `Neo4j (7474/7687)`|
 
 ---
 
-## Supported Deployment Modes
+## 🚦 Data Flow & Threat Detection Pipeline
 
-### Mode 1: Single Host (Development/Lab)
-
-**Setup:**
-```bash
-# Platform and local Suricata on same machine
-export USE_LOCAL_LOGS=true
-python app.py
-```
-
-**Characteristics:**
-- Mayasec reads eve.json directly from filesystem
-- No network traffic needed
-- Suitable for development and testing
-- Single point of failure
-
-**When to use:** Development, lab environments, small deployments
+1.  **Ingestion:** Internet traffic hits the `ingress-proxy`.
+2.  **Scoring:** The proxy queries `ml-service` and checks behavioral telemetry.
+3.  **Classification:** Ambiguous/suspicious payloads are forwarded to the `llm-service` WAF.
+4.  **Routing:**
+    *   Clean traffic -> `production-web`.
+    *   Malicious traffic -> Diverted to `victim-web` (Honeypot).
+5.  **Event Pipeline:** Events are emitted to `Redis Streams`.
+6.  **Processing:** `event-worker` consumes the stream, logging to `PostgreSQL` and `Neo4j`.
+7.  **Analysis:** The `core` engine correlates events, triggering SOC alerts, visualized in `mayasec-ui`.
 
 ---
 
-### Mode 2: API-Only (Distributed)
+## 🚀 Quick Start Guide
 
-**Setup - Platform:**
+### 1) Prerequisites
+*   Docker & Docker Compose (v2)
+*   At least 8 GB RAM (16 GB recommended for running local LLMs via Ollama)
+
+### 2) Configuration
+Copy the environment template and verify your credentials:
 ```bash
-export USE_LOCAL_LOGS=false
-python app.py
+cp .env.example .env
+```
+Ensure `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and `ADMIN_TOKEN` are set. If using OpenAI fallback in the LLM service, provide your `OPENAI_API_KEY`.
+
+### 3) Launch the Platform
+Start the entire stack, including all AI and messaging services:
+```bash
+docker compose up -d --build
 ```
 
-**Setup - Sensor:**
+### 4) Verify Services
 ```bash
-export MAYASEC_API_URL=http://platform-host:8000
-python suricata_forwarder.py
+docker compose ps
 ```
+*Wait until all containers show a `(healthy)` status.*
 
-**Characteristics:**
-- Platform doesn't read local files
-- All events via HTTP API from forwarders
-- Multiple sensors supported
-- Firewall-friendly (single outbound port)
-
-**When to use:** Multi-sensor deployments, cloud environments, network segmentation
+### 5) Access Interfaces
+*   **SOC Dashboard (UI):** [http://localhost:3000](http://localhost:3000)
+*   **Control API:** [http://localhost:5000](http://localhost:5000)
+*   **Neo4j Graph Browser:** [http://localhost:7474](http://localhost:7474)
 
 ---
 
-### Mode 3: Hybrid (Local + Remote)
+## 🛠️ Operations & Troubleshooting
 
-**Setup - Platform:**
-```bash
-export USE_LOCAL_LOGS=true
-export SURICATA_EVE_JSON=/var/log/suricata/eve.json
-python app.py
-```
+*   **View Logs:** `docker compose logs -f --tail=100 <service_name>`
+*   **Rebuild specific service:** `docker compose up -d --build api`
+*   **Run migrations:** `docker compose run --rm migrations python migration_manager.py run`
+*   **Total Reset:** `docker compose down -v` (Destroys all volumes and DB states)
 
-**Setup - Remote Sensors:**
-```bash
-export MAYASEC_API_URL=http://platform-host:8000
-python suricata_forwarder.py
-```
-
-**Characteristics:**
-- Platform reads local Suricata logs
-- Also accepts remote forwarder events
-- Mixed deployment (local + remote sensors)
-- Flexible scaling
-
-**When to use:** Transitioning to distributed architecture, supporting legacy + new deployments
-
----
-
-### Mode 4: High Availability
-
-**Setup - Multiple platforms (active-passive):**
-```bash
-# Primary platform
-export PRIMARY_DB=/var/lib/mayasec/primary.db
-python app.py
-
-# Secondary platform (read replica)
-export DATABASE_PATH=/var/lib/mayasec/replica.db
-python app.py --read-only
-```
-
-**Setup - Sensor forwarder with failover:**
-```bash
-# Forwarder retries with exponential backoff (built-in)
-export MAYASEC_API_URL=http://primary-host:8000
-export FAILOVER_URL=http://secondary-host:8000
-python suricata_forwarder.py
-```
-
-**Characteristics:**
-- Database replication between platforms
-- Automatic failover with health checks
-- Zero event loss
-- Requires database sync mechanism (external)
-
-**When to use:** Production critical monitoring, SLA requirements
-
----
-
-## Event Flow
-
-### Login Event
-```
-Source (SSH/Honeypot) → Mayasec → security_logs (action: login)
-```
-
-### Honeypot Event
-```
-Attacker → Honeypot → Mayasec → honeypot_logs + security_logs
-```
-
-### Network Alert (Suricata)
-```
-Suricata (Sensor) → eve.json → forwarder → /api/ingest/event → security_logs (threat_level)
-```
-
-### Security Action
-```
-API → /api/ingest/event → security_logs (generic event type)
-```
-
----
-
-## Monitoring & Verification
-
-### Check Platform Status
-```bash
-curl http://localhost:8000/api/status
-```
-
-Response includes:
-- `use_local_logs` configuration flag
-- `mode` (single-host vs distributed)
-- Database path
-- Suricata eve.json path
-
-### Query Events by Sensor
-```bash
-sqlite3 security_logs.db \
-  "SELECT sensor_id, event_type, COUNT(*) FROM security_logs GROUP BY sensor_id, event_type;"
-```
-
-### Monitor Forwarder Health
-```bash
-# View statistics in logs
-grep "statistics" /var/log/mayasec/forwarder.log | tail -5
-
-# Check if service is running
-systemctl status suricata-forwarder
-```
-
-### Test API Ingestion
-```bash
-curl -X POST http://localhost:8000/api/ingest/event \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source": "test",
-    "sensor_id": "test-sensor",
-    "timestamp": "2026-01-15T10:00:00Z",
-    "event_type": "network_alert",
-    "data": {"sid": 1234, "msg": "Test alert"}
-  }'
-```
-
----
-
-## Documentation
-
-- [SENSOR_ID_IMPLEMENTATION.md](SENSOR_ID_IMPLEMENTATION.md) - Sensor tracking details
-- [CONFIG_USE_LOCAL_LOGS.md](CONFIG_USE_LOCAL_LOGS.md) - Configuration flag reference
-- [SURICATA_FORWARDER.md](SURICATA_FORWARDER.md) - Forwarder comprehensive guide
-- [USE_LOCAL_LOGS_QUICK_REFERENCE.md](USE_LOCAL_LOGS_QUICK_REFERENCE.md) - Quick reference
-
----
-
-## Troubleshooting
-
-**Platform won't start:**
-- Check Python version: `python --version`
-- Verify dependencies: `pip list | grep -i flask`
-- Check database permissions: `ls -la security_logs.db`
-
-**Forwarder not sending events:**
-- Verify API URL reachability: `curl http://platform-host:8000/api/status`
-- Check forwarder logs: `tail -f /var/log/mayasec/forwarder.log`
-- Verify eve.json path exists: `ls -la /var/log/suricata/eve.json`
-
-**Events not appearing in dashboard:**
-- Enable `USE_LOCAL_LOGS` if using file mode: `export USE_LOCAL_LOGS=true`
-- Check sensor_id in database: `sqlite3 security_logs.db "SELECT DISTINCT sensor_id FROM security_logs;"`
-- Verify event type routing in logs: `grep "event_type" security_monitor.log`
-
----
-
-**Version:** 4.0  
-**Last Updated:** January 2026
+*For more in-depth architecture notes, review the `/docs` folder.*
